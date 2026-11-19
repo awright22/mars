@@ -369,7 +369,7 @@ export function revealMav() {
   S.flags.mavRevealed = true;
   const d = fmtDist(groundDist(player.pos, World.mav.position));
   if (S.link.connected)
-    log(`Control: the ascent vehicle's tanks are full and the Tern's window is open. Arcadia Station is ${d} out.`, 'control');
+    log(`The ascent vehicle's tanks are full and the Tern's window is open. Arcadia Station is ${d} out.`, 'control');
   else
     log(`Sol ${S.rescueSol}. If Control restarted the propellant plant, the ascent vehicle at Arcadia is full now. ${d} to find out.`);
   Snd.jingle();

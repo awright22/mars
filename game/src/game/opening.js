@@ -3,7 +3,8 @@
 //
 // The entry of the advance mission Groundwork, in twenty-four seconds and three shots, with no one in them:
 //   1  the evening sky from the ground: two fireballs, the Hab lander and Quinn's capsule, coming in over the land,
-//      and a faint green aurora (the solar storm is arriving); Control's voice, then the voice breaking up
+//      Control's voice, then the voice breaking up. (A faint green aurora was tried and cut: from where the film looks
+//      it was a smudge in a corner of the sky.)
 //   2  closer: the capsule out of the dusk on an unsteady engine; guidance lost; it hits, and rolls
 //   3  low beside it as the dust settles, the Hab's beacon far off; Control calling, unanswered
 // and then black, a card on it (a night has passed), and morning: the game comes up on Quinn lying beside the
@@ -98,24 +99,6 @@ function hazeTexture() {
   }
   g.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace;
-  return t;
-}
-
-/**
- * A green glow along the sky: the oxygen line an aurora on Mars gives off (seen from the surface by Perseverance in
- * March 2024). Soft, banded and faint.
- */
-function auroraTexture() {
-  const W = 256, H = 64, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), img = g.createImageData(W, H);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    const x = i / (W - 1), y = j / (H - 1);
-    const across = Math.sin(Math.PI * x) ** 1.5, curtain = 0.6 + 0.4 * Math.sin(x * 37 + Math.sin(x * 9) * 2.2);
-    const v = across * curtain * Math.exp(-(((y - 0.55) / 0.22) ** 2)) * (1 - 0.6 * y);
-    const k = (j * W + i) * 4; img.data[k] = 70; img.data[k + 1] = 255; img.data[k + 2] = 140; img.data[k + 3] = Math.round(255 * clamp(v, 0, 1));
-  }
-  g.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
@@ -231,12 +214,6 @@ export function startOpening(done) {
   const st = { fire: 0 };
   addLamp(lightFire, { color: 0xff9a4a, power: 260, range: 160, decay: 1.0, level: () => st.fire });
 
-  // ---- the aurora, low in the sky opposite the sunset (a plane turned to the lens, far off and faint)
-  const auroraTex = auroraTexture();
-  const aurora = new THREE.Mesh(new THREE.PlaneGeometry(3600, 520), new THREE.MeshBasicMaterial({ map: auroraTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
-  aurora.renderOrder = 1; aurora.frustumCulled = false;
-  ctx.world.add(aurora);
-  const auroraAt = V().copy(wake).addScaledVector(_a.copy(e.sunDir).addScaledVector(up, -e.sunDir.dot(up)).normalize().negate(), 2000).addScaledVector(up, 380);
 
   if (astro) astro.visible = false;
   S.mode = 'cutscene';
@@ -308,10 +285,6 @@ export function startOpening(done) {
     // dust thrown up where it rolls, for as long as it rolls
     if (!descending && t - T_HIT < ROLL && t - lastPuff > 0.12 && ctx.vfx) { lastPuff = t; ctx.vfx.puff(capsule.position, { count: 5, speed: 2.4, up: 1.6, spread: 1.2, size: 1.6, life: 2.6, tone: 0.3 }); }
 
-    // ---- the aurora
-    aurora.position.copy(auroraAt);
-    aurora.lookAt(cam.position);
-    aurora.material.opacity = 0.32 * (t < T_CLOSE ? smoothstep(1.0, 4.0, t) : t > T_LOW ? smoothstep(T_LOW, T_LOW + 2.5, t) * (1 - smoothstep(T_OUT - 1, T_OUT, t)) : 0.5);
 
     // ---- the three shots
     if (t < T_CLOSE) {
@@ -355,8 +328,8 @@ export function startOpening(done) {
     flame.removeFromParent();
     flame.traverse((o) => { if (o.material) o.material.dispose(); if (o.geometry) o.geometry.dispose(); });
     for (const b of [landerBall, capsuleBall]) { for (const sp of b.parts) sp.material.dispose(); ctx.world.remove(b.group); }
-    for (const o of [capsule, heat, aurora]) ctx.world.remove(o);
-    heat.material.dispose(); aurora.material.dispose(); aurora.geometry.dispose(); auroraTex.dispose(); glowMap.dispose(); hazeMap.dispose();
+    for (const o of [capsule, heat]) ctx.world.remove(o);
+    heat.material.dispose(); glowMap.dispose(); hazeMap.dispose();
     if (wreck && !wreck.taken) setSiteShown(wreck.group, true);
     Snd.rumble(0);
     e.final.uniforms.uStreamers.value = 1;

@@ -408,7 +408,7 @@ export function startLaunch() {
   const camNear = clear(onGround(nearDir, 46, 2.0)), camFar = clear(onGround(farDir, FAR, 3.2));
 
   log('Handover filed. Strapped in. To the first crew: the seat is better than it looks.');
-  if (S.link.connected) setTimeout(() => log('Control: Groundwork, you are go for launch. The Tern is ready for you.', 'control'), 1400);
+  if (S.link.connected) setTimeout(() => log('Groundwork, you are go for launch. The Tern is ready for you.', 'control'), 1400);
   [3, 2, 1].forEach((n, i) => setTimeout(() => { Snd.play('countdown'); log(`${n}...`, 'control'); }, 2000 + i * 1000));
 
   if (!tern) {
@@ -426,7 +426,7 @@ export function startLaunch() {
         // (and a halo: from the docking camera a lamp is a pixel or two, and "her lights come on along her length" was a
         //  few dim dots. Set on the lamp's own middle, sized in metres once she is in the world, below)
         o.geometry.computeBoundingBox();
-        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloMap, color: new THREE.Color(1.9, 1.7, 1.35), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloMap, color: new THREE.Color(1.9, 1.7, 1.35), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false }));
         o.geometry.boundingBox.getCenter(halo.position); halo.renderOrder = 22;
         o.add(halo);
         World.ternLamps.push({ k, mat: o.material, full: o.material.emissiveIntensity || 4, halo });
@@ -441,10 +441,11 @@ export function startLaunch() {
     World.ternFlame.rotation.x = Math.PI / 2;
     (World.ternNozzle || tern).add(World.ternFlame);
     ctx.world.add(tern);
-    // (each halo 2.4 m across, whatever the scale of the part it hangs on)
+    // (each halo 1.3 m across, whatever the scale of the part it hangs on, and drawn over the hull it sits on: 2.4 m and
+    //  hidden by the hull where it curves away, they were half-domes cut by dark bands, not lamps)
     tern.updateMatrixWorld(true);
     const ws = new THREE.Vector3();
-    for (const l of World.ternLamps) { l.halo.parent.getWorldScale(ws); l.halo.scale.set(2.4 / ws.x, 2.4 / ws.y, 1); }
+    for (const l of World.ternLamps) { l.halo.parent.getWorldScale(ws); l.halo.scale.set(1.3 / ws.x, 1.3 / ws.y, 1); }
   }
   tern.visible = false;
   for (const l of World.ternLamps) { l.mat.emissiveIntensity = 0; l.halo.material.opacity = 0; }
@@ -619,7 +620,7 @@ export function startLaunch() {
       for (const l of World.ternLamps) { const on = smoothstep(0, 0.3, ot - LIGHTS_AT - l.k * 0.28); l.mat.emissiveIntensity = l.full * on; l.halo.material.opacity = 0.85 * on; }
       const navOn = smoothstep(0, 0.3, ot - LIGHTS_AT - 2.8), blink = Math.sin(ot * Math.PI * 1.6) > 0.2 ? 1 : 0.15;      // (under one flash a second)
       for (const l of World.ternNav) l.mat.emissiveIntensity = l.full * navOn * blink;
-      if (ot > LIGHTS_AT + 0.6 && O.said < 1) { O.said = 1; log('Control: Groundwork, the Tern reports you aboard. She is all yours.', 'control'); }
+      if (ot > LIGHTS_AT + 0.6 && O.said < 1) { O.said = 1; log('Groundwork, the Tern reports you aboard. She is all yours.', 'control'); }
       // her engine
       const eng = smoothstep(BURN_AT, BURN_AT + 0.6, ot);
       World.ternFlame.visible = eng > 0.001;
@@ -643,11 +644,13 @@ export function startLaunch() {
         _a.copy(O.x).multiplyScalar(-1);
         stand(_d, _a, O.lightPitch, 34, O.lightRoll);
       } else {
-        // riding ahead of her and above, looking back down her length at Mars as it falls away
+        // riding ahead of her and above, looking back down her length at Mars as it falls away: the gaze lifts and runs
+        // aft to her engine as the burn goes on, so the planet sinks out of the foot of the picture and the plume stays in
+        // it (it tipped further down, and Mars grew while the log said it was getting smaller)
         setShot('away', 44);
         const k = smoothstep(BURN_AT, BURN_AT + 6, ot);
         cam.position.copy(O.shipAt).addScaledVector(O.f, 34 + 8 * k).addScaledVector(up, 11 + 4 * k).addScaledVector(O.x, -9);
-        _d.copy(O.shipAt).addScaledVector(O.f, -30).addScaledVector(up, -26 - 30 * k);
+        _d.copy(O.shipAt).addScaledVector(O.f, -30 - 26 * k).addScaledVector(up, -26 + 22 * k);
         camLookAt(_d, up);
       }
     }

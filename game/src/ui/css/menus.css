@@ -576,6 +576,9 @@
 /* (a phone has no subtitle on this sheet: the steps take its row, under the title. Left in the row after it, they stood
    at the foot of a gap as tall as the stats beside them, 180 px on an iPhone held sideways) */
 .mg-compact #mg-overlay.k-win .dlg .steps { grid-row: 3; }
+/* (and the notes for the crew under them, beside the numbers: across the foot of the sheet they were below the fold, and
+   the left column stood empty beside a table of stats, which read as a score and not a handover) */
+.mg-compact #mg-overlay.k-win .dlg .handover { grid-column: 1; grid-row: 4; grid-template-columns: 5.25rem 1fr; }
 .mg-compact #mg-overlay.k-win .dlg blockquote { margin-top: .375rem; }
 .mg-compact #mg-overlay.k-win .dlg blockquote cite { display: inline; margin: 0 0 0 .5em; white-space: nowrap; }
 @media (max-width: 760px) {

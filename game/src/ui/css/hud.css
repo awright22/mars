@@ -169,7 +169,7 @@
 /* ---------------------------------------------------------------- log (bottom left) */
 #mg-log { position: absolute; left: calc(var(--m) + var(--sal)); bottom: calc(var(--m) + var(--sab)); width: min(27rem, calc(50vw - 13.5rem));
   display: flex; flex-direction: column; gap: .375rem; }
-.mg-line { display: grid; grid-template-columns: 3.125rem 1fr; column-gap: .625rem; align-items: baseline; padding: .4375rem .75rem .5rem .6875rem;
+.mg-line { display: grid; grid-template-columns: minmax(3.125rem, max-content) 1fr; column-gap: .625rem; align-items: baseline; padding: .4375rem .75rem .5rem .6875rem;
   background: var(--plate); border-left: 2px solid var(--accent); border-radius: 0 .1875rem .1875rem 0;
   font-size: .875rem; line-height: 1.38; color: var(--ink); opacity: 1; transition: opacity 1.2s; animation: mg-rise-in .3s var(--ease); }
 .mg-line .who { font: 600 .6875rem/1 var(--f-cond); letter-spacing: .18em; color: var(--accent); }
@@ -650,7 +650,8 @@
 @keyframes mg-region-in-c { 0% { letter-spacing: .4em; text-indent: .4em; background: var(--accent-wash); } 100% { letter-spacing: .12em; text-indent: .12em; } }
 .mg-compact #mg-clock .sol .k { font-size: var(--tcap); letter-spacing: .14em; }
 .mg-compact .alert { font-size: var(--tcap); letter-spacing: .08em; }
-.mg-compact .mg-line { grid-template-columns: 3rem 1fr; }
+/* (the label's column as wide as its word at least: CONTROL ran into its line, "CONTROL2...") */
+.mg-compact .mg-line { grid-template-columns: minmax(3rem, max-content) 1fr; }
 .mg-compact .mg-line .who { font-size: var(--tcap); letter-spacing: .04em; }
 .mg-compact .toast .t1 { font-size: var(--tcap); letter-spacing: .14em; }
 .mg-compact #mg-rover .spd span { font-size: var(--tcap); letter-spacing: .08em; }
