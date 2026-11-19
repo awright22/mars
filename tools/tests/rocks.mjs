@@ -61,6 +61,9 @@ const g = await openGame({ quality: 'medium' });
 await g.eval(async (G) => { await G.start(2.0, 303.7); G.skipIntro(); G.paused = true; G.S.storm.cells.forEach((c) => { c.peak = 0; }); G.setStorm(0); });
 // (no rock is drawn until the shapes are worked out, a few milliseconds at a time from the moment the game loads)
 await g.eval(async (G) => { while (!G.ctx.rocks.ready) await new Promise((r) => setTimeout(r, 100)); });
+// (the rocks lie on the finest mesh, so each survey waits for all of the ground about the camera to be built: on a
+// machine drawing in software, sharing four cores with the two terrain workers, that is minutes, not the twenty
+// seconds a plain settle allows, and a survey taken early found no stones at all)
 const frames = (n = 3) => g.eval(async (G, n) => {
   const e = G.ctx.engine;
   for (let k = 0, last = e.frameStats; k < n;) { await new Promise((r) => setTimeout(r, 60)); if (e.frameStats !== last) { last = e.frameStats; k++; } }
@@ -145,7 +148,7 @@ const onFoot = (s, where) => {
 };
 
 console.log('the crash site (where a rock floated above its shadow)');
-await g.eval(async (G) => { G.tpAround(G.World.pods[2].group.position, 2.8, 300); G.setLocalTime(9.5); G.tick(0.05, 20); await G.settle(); });
+await g.eval(async (G) => { G.tpAround(G.World.pods[2].group.position, 2.8, 300); G.setLocalTime(9.5); G.tick(0.05, 20); if (!(await G.settle(420000))) throw new Error('the ground about the camera was not built in seven minutes'); });
 await frames();
 let s = await survey(45);
 check(s.n > 40, `${s.n} rocks stand on the finest mesh within 45 m (${s.big} boulders, ${s.small} stones)`);
@@ -156,7 +159,7 @@ check(s.onLava === 0 && s.inField === 0, `no rock here thinks it lies on lava ($
 onFoot(s, 'put down at the crash site');
 
 console.log('a rock garden (the Viking 1 site)');
-await g.eval(async (G) => { await G.tp(22.48, 312.05, 0); G.setLocalTime(15.5); G.tick(0.05, 20); await G.settle(); });
+await g.eval(async (G) => { await G.tp(22.48, 312.05, 0); G.setLocalTime(15.5); G.tick(0.05, 20); if (!(await G.settle(420000))) throw new Error('the ground about the camera was not built in seven minutes'); });
 await frames();
 s = await survey(60);
 check(s.worstGap < 0.02, `${s.n} rocks, the worst ${(s.worstGap * 1000).toFixed(1)} mm off the ground`);
@@ -173,14 +176,14 @@ s = await survey(20);
 onFoot(s, 'after walking on');
 
 console.log('a canyon wall (Valles Marineris, the north rim)');
-await g.eval(async (G) => { await G.tp(-8.47, 296, 3.14); G.setLocalTime(15); G.tick(0.05, 20); await G.settle(); });
+await g.eval(async (G) => { await G.tp(-8.47, 296, 3.14); G.setLocalTime(15); G.tick(0.05, 20); if (!(await G.settle(420000))) throw new Error('the ground about the camera was not built in seven minutes'); });
 await frames();
 s = await survey(80);
 check(s.worstGap < 0.02, `${s.n} rocks, the worst ${(s.worstGap * 1000).toFixed(1)} mm off the ground`);
 check(s.steepest > 0.8, `none on a riser (the steepest ground under a stone is ${(Math.acos(Math.min(1, s.steepest)) * 180 / Math.PI).toFixed(0)} degrees)`);
 
 console.log('a lava flow (the flank of Olympus Mons)');
-await g.eval(async (G) => { await G.tp(15.5, 228.5, 0.5); G.setLocalTime(8); G.tick(0.05, 20); await G.settle(); });
+await g.eval(async (G) => { await G.tp(15.5, 228.5, 0.5); G.setLocalTime(8); G.tick(0.05, 20); if (!(await G.settle(420000))) throw new Error('the ground about the camera was not built in seven minutes'); });
 await frames();
 s = await survey(60);
 check(s.drawn > 40 && s.inField === s.drawn, `all ${s.drawn} rocks know they lie on a volcano, and are drawn as its own dark rock (${s.inField})`);
@@ -188,7 +191,7 @@ check(s.onLava > s.drawn * 0.25, `${s.onLava} of them lie on bare lava, where th
 onFoot(s, 'put down on the lava');
 
 console.log('the north polar cap');
-await g.eval(async (G) => { await G.tp(89.93, 0, 2.2); G.setLocalTime(12); G.tick(0.05, 20); await G.settle(); });
+await g.eval(async (G) => { await G.tp(89.93, 0, 2.2); G.setLocalTime(12); G.tick(0.05, 20); if (!(await G.settle(420000))) throw new Error('the ground about the camera was not built in seven minutes'); });
 await frames();
 s = await survey(400);
 check(s.onIce === 0, `no rock lies on the ice (${s.onIce})`);

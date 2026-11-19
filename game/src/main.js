@@ -547,7 +547,9 @@ function installDebug() {
       player.pitch = Math.asin(clamp(v.dot(up), -1, 1));
       lastFocus = tick(0.001);
     },
-    async settle() { ctx.engine.camera.updateMatrixWorld(); return ctx.terrain.settle(ctx.engine.camera.position, 20000); },
+    /** Wait for the ground about the camera to be built (twenty seconds at most, or as long as asked: a test that looks at
+     *  the finest mesh waits for all of it, which a slow machine drawing in software can take minutes to build). */
+    async settle(timeoutMs = 20000) { ctx.engine.camera.updateMatrixWorld(); return ctx.terrain.settle(ctx.engine.camera.position, timeoutMs); },
     info() { return { fps: +this.fps.toFixed(1), ...ctx.engine.info(), ...ctx.terrain.stats(), rocks: ctx.rocks.counts }; },
   };
 }
