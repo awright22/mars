@@ -1,0 +1,108 @@
+// Save migration: a version-2 save (made by the first full-planet release, under the game's old storage key and in
+// its old story) must load, keep its progress, be carried into the game's own story, and tell the player plainly
+// that it is from an older version. An unreadable save must be reported, not ignored. And saves go out and come
+// back in as text (Settings, Saved games).
+import { openGame, sleep } from './lib.mjs';
+const V2 = {"v":2,"diff":"survival","spawn":{"lat":17.4,"lon":163.5},"sol":12,"tod":0.31,"o2":88,"water":64,"food":6,"potatoes":9,"power":71,"health":93,"suit":150,"roverPower":80,"roverO2":260,"hydrazine":1,
+  "inv":{"scrap":7,"circuit":2,"regolith":1,"ice":0,"candle":2,"kitSolar":0,"kitGreenhouse":0,"kitBeacon":0,"kitCache":0},"upgrades":{"tank1":true},"blueprints":{"drill":true,"drive2":false,"tank2":false,"recycler":false},
+  "quests":{"viking1":"active","spirit":"active","oppy":"active","insight":"active","phoenix":"active","mars3":"active","breadcrumbs":"active"},"salvaged":{},"discovered":{"Elysium Mons":true},"achieved":{"notdead":true,"phone":true},
+  "checkedSystems":{"oxy":true,"rec":true},"flags":{"coldOpen":false,"suitSealed":true,"didMath":true,"hydrazineBoom":true,"linkRevealed":true,"mavRevealed":false,"mavStripped":false,"nasaMsg":2,"routePods":true},
+  "stats":{"potatoes":16,"panels":5,"walked":2100,"driven":18000,"closeCalls":1,"booms":2,"mined":0,"crafted":3,"discoveries":1,"stormOut":0},"breach":{"active":false,"done":true,"cropsKilled":false,"timer":0},
+  "pf":{"found":true,"loaded":true,"connected":true},"stormCells":[{"lat":10,"lon":20,"r":2000,"drift":30,"dir":1,"peak":0.8},{"lat":-30,"lon":200,"r":2500,"drift":25,"dir":2,"peak":0.9},{"lat":40,"lon":300,"r":3000,"drift":40,"dir":3,"peak":0.75}],
+  "plots":[{"state":"growing","growth":0.6,"watered":2},{"state":"ready","growth":1,"watered":2},{"state":"soil","growth":0,"watered":0},{"state":"empty","growth":0,"watered":0},{"state":"empty","growth":0,"watered":0},{"state":"empty","growth":0,"watered":0},{"state":"growing","growth":0.3,"watered":1},{"state":"empty","growth":0,"watered":0},{"state":"empty","growth":0,"watered":0},{"state":"empty","growth":0,"watered":0}],
+  "panels":[0.1,0.2,0.3,0.1,0.2,0.3,0.1,0.2],"piles":[2,1,0,2,2,2],"pods":[true,false,false,false],"podLoot":[{"loot":{"scrap":2},"label":"Salvage MDV debris","blueprint":null,"ll":{"lat":17.41,"lon":163.52}},{"loot":{"scrap":2},"label":"Salvage MDV debris","blueprint":null,"ll":{"lat":17.42,"lon":163.54}},{"loot":{"scrap":2},"label":"Salvage MDV debris","blueprint":null,"ll":{"lat":17.43,"lon":163.56}},{"loot":{"scrap":3,"rations":3,"candle":1},"label":"Open NASA care package","blueprint":"drill","ll":{"lat":17.39,"lon":163.49}}],
+  "ice":[6,6,6,6,6,6,6,6,6,6,6,6],"rtgTaken":false,"built":[{"kind":"greenhouse","charges":0,"ll":{"lat":17.405,"lon":163.47}}],"playerQ":null,"roverQ":null};
+const g = await openGame({ quality: 'low' });
+// a real v2 save stores quaternions; borrow valid ones from a fresh game at the same site
+const quats = await g.eval(async (G) => { await G.start(17.4, 163.5); const s = G.serializeState(); return { p: s.playerQ, r: s.roverQ }; });
+V2.playerQ = quats.p; V2.roverQ = quats.r;
+// (under the old key, with nothing under the new one: the game adopts it on load)
+await g.page.evaluate((s) => { localStorage.removeItem('mg-save'); localStorage.removeItem('mg-save-base'); localStorage.setItem('stranded2-save', s); }, JSON.stringify(V2));
+await g.page.reload({ waitUntil: 'load' });
+await g.page.waitForFunction(() => window.__MG && window.__MG.ready, null, { timeout: 240000 });
+const title = await g.page.locator('#mg-panel').innerText();
+const fails = [];
+const check = (name, ok, d) => { console.log((ok ? '  ok   ' : '  FAIL ') + name + (d !== undefined ? '  ' + JSON.stringify(d) : '')); if (!ok) fails.push(name); };
+// Sol 12 of 45 under the old, shorter sols is Sol 7 of 25 now
+check('title offers to continue the old save, its sol converted', /continue\s*sol 7\b/i.test(title), title.split('\n').filter((l) => /continue|new game|sol/i.test(l)));
+await g.page.locator('#mg-panel button', { hasText: 'CONTINUE' }).click();
+// The notices are typed into the log one after the other, a second or two after the game continues, and fade ten
+// seconds later: watch the log from this moment until both have been seen. (Watched only after the checks below,
+// on a busy machine they had come and gone before the watching began, and the check failed on a game that had
+// told the player everything.)
+// first, before anything else, the plain notice that the run is from an older version and what became of it
+await g.page.waitForFunction(() => { const h = document.querySelector('#mg-panel .dlg h1'); return h && /older version/i.test(h.textContent); }, null, { timeout: 120000 });
+const notice = await g.page.locator('#mg-panel .dlg').innerText();
+check('the player is told plainly the save is from an older version, and how it carries into the new story', /saved by an older version/i.test(notice) && /Quinn/.test(notice) && /Arcadia/.test(notice) && /water/i.test(notice), notice.slice(0, 260));
+await g.page.locator('#mg-panel button', { hasText: 'Carry on' }).click();
+let logText = '';
+for (let i = 0; i < 240 && !(/real orbital elevation/.test(logText) && /Mission clock recalibrated/.test(logText)); i++) {
+  await sleep(250);
+  logText += '\n' + await g.page.locator('#mg-log').innerText();
+}
+const s = await g.eval(async (G) => { await G.settle(); return { sol: G.S.sol, potatoes: G.S.potatoes, scrap: G.S.inv.scrap, tank1: !!G.S.upgrades.tank1, pf: G.S.link.connected, water: G.S.water, ach: Object.keys(G.S.achieved).sort().join(), adopted: !!localStorage.getItem('mg-save'), plots: G.World.plots.length, plot6: G.World.plots[6] && G.World.plots[6].state,
+  built: G.World.builtMeshes.map((b) => b.kind), pods: G.World.pods.length, alt: +(G.player.pos.length() - G.surfaceAt(G.player.pos)).toFixed(3), started: G.S.started }; });
+check('progress carried over: the old radio call is the Earth-link, the unburnt fuel is water, the achievements renamed, under the new key', s.started && s.sol === 7 && s.potatoes === 9 && s.scrap === 7 && s.tank1 && s.pf && s.water > 91 && s.water <= 92 && s.ach === 'firstdawn,link' && s.adopted, s);
+check('greenhouse and its crops rebuilt', s.built[0] === 'greenhouse' && s.plots === 10 && s.plot6 === 'growing', s);
+check('astronaut stands on the new ground', Math.abs(s.alt) < 0.01, s.alt);
+check('player is told what changed', /real orbital elevation/.test(logText) && /Mission clock recalibrated/.test(logText), logText.slice(-300));
+const resaved = await g.eval((G) => { G.saveGame(); const d = JSON.parse(localStorage.getItem('mg-save')); return { v: d.v, log: Array.isArray(d.log) ? d.log.length : -1, line: d.log && d.log[0] }; });
+check('re-saved in the current format', resaved.v === 5, resaved.v);
+// the last lines of the log go with the save (an optional field), and come back with it
+check('the log is kept with the save', resaved.log >= 1 && typeof resaved.line.text === 'string' && resaved.line.sol >= 1, resaved);
+const kept = await g.eval((G) => { const d = JSON.parse(localStorage.getItem('mg-save')); d.log = [{ text: 'A line from yesterday.', voice: 'log', sol: 6 }]; G.applyState(d); return true; });
+await g.page.keyboard.press('j');
+await g.page.locator('#mg-journal [data-tab="log"]').click();
+const jl = await g.page.locator('#mg-journal .jr-body').innerText();
+check('a continued run has its log in the journal', kept && /A line from yesterday\./.test(jl) && /SOL 6/i.test(jl), jl.slice(0, 120));
+await g.page.keyboard.press('Escape');
+// The paths he wears round the Hab (game/wear.js): a save from before has none; walking a line wears it, walking it
+// again wears it more; the save keeps the map and gives it back.
+const wear = await g.eval((G) => {
+  G.paused = true; G.setStorm(0); G.S.storm.i = 0;
+  const old = G.serializeWear();
+  const walk = () => { G.tpLocal(30, 55, 0); const from = G.player.pos.clone(); G.input.keys.w = true; G.tick(1 / 30, 150); G.input.keys.w = false; G.tick(1 / 30, 10); return from.lerp(G.player.pos, 0.5); };
+  const mid = walk(), far = G.player.pos.clone().sub(mid).length() * 2;
+  // (the most worn of the places along the middle of the line: a footfall lands beside the line, not on it)
+  const at = () => { let m = 0; for (let i = -4; i <= 4; i++) for (let j = -2; j <= 2; j++) m = Math.max(m, G.wearAt(mid.clone().add(new mid.constructor(i * 0.3, 0, j * 0.3)))); return m; };
+  const once = at();
+  for (let i = 0; i < 7; i++) walk();
+  const many = at();
+  G.saveGame();
+  const d = JSON.parse(localStorage.getItem('mg-save'));
+  G.tread(mid, 255); G.tread(mid, 255);
+  const spoilt = at();
+  G.applyState(d);
+  return { old, far: +far.toFixed(1), once: +once.toFixed(3), many: +many.toFixed(3), saved: (d.wear || '').length, spoilt: +spoilt.toFixed(2), back: +at().toFixed(3) };
+});
+check('an older save has no worn paths, and loads', wear.old === '', wear.old.length);
+check('walking a line wears the ground, and walking it again wears it more', wear.far > 15 && wear.once > 0.01 && wear.many > wear.once * 2.5, wear);
+check('the save keeps the paths and gives them back', wear.saved > 0 && wear.saved < 20000 && wear.spoilt > 0.5 && Math.abs(wear.back - wear.many) < 0.07, wear);
+// saved games as text: out of one copy of the game and back into another (here, the same one emptied)
+const xfer = await g.eval((G) => {
+  G.saveGame();
+  const before = localStorage.getItem('mg-save');
+  const text = G.exportSaves();
+  localStorage.removeItem('mg-save');
+  const bad = G.importSaves('not a save');
+  const ok = G.importSaves(text);
+  G.World.importing = false;
+  const after = localStorage.getItem('mg-save');
+  return { head: text.slice(0, 8), bad: bad.ok, ok: ok.ok, msg: ok.msg, same: before === after };
+});
+check('saved games go out as text and come back in; text that is not a save is refused', xfer.head === 'MGSAVE1:' && !xfer.bad && xfer.ok && xfer.same, xfer);
+await g.page.keyboard.press('Escape');
+await g.page.locator('#mg-panel button', { hasText: 'Settings' }).first().click();
+const row = await g.page.locator('#mg-panel [data-act="export"]').count() + await g.page.locator('#mg-panel [data-act="import"]').count();
+await g.page.locator('#mg-panel [data-act="export"]').click();
+const shown = await g.page.locator('#mg-panel textarea.xfer').inputValue();
+check('Settings has Saved games: Copy as text shows the runs as text, and Load from text is beside it', row === 2 && shown.startsWith('MGSAVE1:'), { row, head: shown.slice(0, 12) });
+// an unreadable save is reported on the title screen
+await g.page.evaluate(() => localStorage.setItem('mg-save', JSON.stringify({ v: 99, nonsense: true })));
+await g.page.reload({ waitUntil: 'load' });
+await g.page.waitForFunction(() => window.__MG && window.__MG.ready, null, { timeout: 240000 });
+const title2 = await g.page.locator('#mg-panel').innerText();
+check('unreadable save is reported plainly', /cannot be continued/.test(title2) && !/continue\s*sol/i.test(title2));
+console.log(`${fails.length ? 'FAILED' : 'passed'}; console errors: ${g.errors.length}`, g.errors.slice(0, 3));
+await g.close();
+process.exit(fails.length || g.errors.length ? 1 : 0);

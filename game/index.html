@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Mars Survival">
+    <meta name="theme-color" content="#050403">
+    <meta name="color-scheme" content="dark">
+    <meta name="description" content="Mars Survival: A survival game on a whole, real Mars. Land. Farm. Call Earth. Catch your ship home.">
+    <title>Mars Survival</title>
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="preload" href="assets/fonts/barlow-condensed-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/fonts/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="game.css">
+</head>
+<body>
+    <div id="mg-boot" role="status" aria-live="polite">
+        <div class="mg-wordmark">MARS<em>SURVIVAL</em></div>
+        <div class="mg-boot-sub">Loading</div>
+    </div>
+    <noscript><p style="color:#f5f0e8;font-family:sans-serif;text-align:center;margin-top:40vh">Mars Survival needs JavaScript and WebGL to run.</p></noscript>
+    <script>
+    /* Which build this page belongs to (stamped by tools/build.mjs), and a check before the game is loaded.
+     * The page itself comes from the network whenever there is one; everything else comes from the offline copy
+     * the service worker keeps. If that copy is another build's, the worker has not taken this one. (An installed
+     * copy on an iPhone stayed on one build through nineteen newer ones.) Then the old copy and its worker are
+     * dropped and the page is loaded again, from the network. Saved games are in local storage and are not touched. */
+    (function () {
+      var BUILD = /*BUILD*/'566b3ed7c658'/*END*/;
+      window.__BUILD = BUILD;
+      function start() {
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.src = 'game.js' + (BUILD ? '?v=' + BUILD : '');
+        document.body.appendChild(s);
+      }
+      try {
+        var sw = navigator.serviceWorker;
+        if (!BUILD || !window.caches || !sw || !sw.controller || sessionStorage.getItem('mg-fresh') === BUILD) { start(); return; }
+        caches.keys().then(function (keys) {
+          var stale = keys.filter(function (k) { return k.indexOf('mg-') === 0 && k !== 'mg-' + BUILD; });
+          if (!stale.length) { start(); return; }
+          // (only with the network to load from: a HEAD request is not answered from the offline copy)
+          return fetch('game.js', { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+            if (!r.ok) throw new Error('offline');
+            var here = new URL('.', location.href).href;
+            return Promise.all([
+              Promise.all(stale.map(function (k) { return caches.delete(k); })),
+              sw.getRegistrations().then(function (rs) { return Promise.all(rs.filter(function (x) { return x.scope === here; }).map(function (x) { return x.unregister(); })); })
+            ]);
+          }).then(function () { sessionStorage.setItem('mg-fresh', BUILD); location.reload(); });
+        }).catch(start);
+      } catch (e) { start(); }
+    })();
+    </script>
+</body>
+</html>

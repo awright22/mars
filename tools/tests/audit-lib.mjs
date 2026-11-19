@@ -1,0 +1,464 @@
+// What a screenshot review measures by eye, measured in the page: text set too small (on a phone: anything under
+// 12 px, capitals under 14, the condensed face under 13, and what the map letters on its canvas by the same rules), a
+// figure run into its unit, touch targets under 44 px (a slider's handle and a switch included, and anything drawn as a
+// button), round touch buttons standing closer than 12 px, controls that reach outside the safe area, text cut off by
+// its box, text printed over other text, and content cut by the edge of the box or dialog it is in, or by the screen.
+//
+// The sizes are what a reviewer's eye makes of type, not what the style sheet calls it. The sixth review named labels
+// this audit had passed: gauge units and a banner's second line (the condensed face in lower case at 11 px: its
+// lower case stands 5.5 px tall, and reads as 8 px type); the captions of the touch buttons (capitals at 12 px, which
+// the rule of the time excused as "half of a label"); tile labels and a card's field names (capitals at 13 px, read
+// as "about 10 px" beside 13 px text); and latitudes on the map (11 px on a canvas, which was not measured at all).
+// `auditInPage` runs inside the browser (pass it to page.evaluate with the safe-area insets); it must not
+// refer to anything outside itself.
+
+/**
+ * @param {number[]} safe  [top, right, bottom, left] safe-area insets in px
+ * @returns {{ text: string[], targets: string[], outside: string[], cut: string[], over: string[], clipped: string[] }} one line per offender
+ */
+export function auditInPage(safe) {
+  const [st, sr, sb, sl] = safe || [0, 0, 0, 0];
+  const root = document.getElementById('mg-root');
+  const W = window.innerWidth, H = window.innerHeight;
+  const styleOf = (n) => getComputedStyle(n);
+  /** Shown at all: not display:none, hidden or transparent anywhere up the tree, and with a box. */
+  const shown = (n) => {
+    // (visibility is inherited and a child can turn it back on: the thing's own computed value is the truth)
+    if (styleOf(n).visibility === 'hidden') return false;
+    for (let a = n; a && a !== document.body; a = a.parentElement) {
+      const cs = styleOf(a);
+      if (cs.display === 'none' || +cs.opacity < 0.05) return false;
+    }
+    const r = n.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const onScreen = (r) => r.right > 0 && r.bottom > 0 && r.left < W && r.top < H;
+  /** The part of a box left showing by the scrolling regions it sits in. */
+  const visiblePart = (n) => {
+    let r = n.getBoundingClientRect();
+    let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    for (let a = n.parentElement; a && a !== root; a = a.parentElement) {
+      const cs = styleOf(a);
+      if (/(auto|scroll|hidden)/.test(cs.overflowY + cs.overflowX)) {
+        const c = a.getBoundingClientRect();
+        box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
+      }
+    }
+    return box;
+  };
+  const name = (n) => {
+    const parts = [];
+    for (let a = n; a && a !== root && parts.length < 4; a = a.parentElement) parts.unshift(a.id ? '#' + a.id : a.tagName.toLowerCase() + (a.classList.length ? '.' + [...a.classList].slice(0, 2).join('.') : ''));
+    return parts.join(' ');
+  };
+  const words = (n) => (n.getAttribute('aria-label') || n.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 28);
+  const out = { text: [], targets: [], outside: [], cut: [], over: [], clipped: [] };
+
+  // ---- text under 11 px (a subscript 2, and text for screen readers only, are not reading text)
+  const seen = new Set();
+  const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (tw.nextNode()) {
+    const t = tw.currentNode;
+    if (!t.nodeValue.trim()) continue;
+    const p = t.parentElement;
+    if (!p || seen.has(p) || p.closest('sub, .sr, canvas, #mg-boot')) continue;
+    seen.add(p);
+    if (!shown(p)) continue;
+    const v = visiblePart(p);
+    if (v.right - v.left < 1 || v.bottom - v.top < 1 || !onScreen(v)) continue;
+    const cs = styleOf(p), size = parseFloat(cs.fontSize), said = t.nodeValue.trim();
+    const phone = root.classList.contains('mg-compact');
+    // (A phone's rules, where they were found: the phone arrangement is the one held to them. A tablet's pixel is a
+    //  quarter larger and a desktop is read from further off at a larger scale: both are held to 11 px and no more.)
+    if (size < (phone ? 11.95 : 10.95)) out.text.push(`${size.toFixed(1)}px  ${name(p)}  “${said.slice(0, 28)}”`);
+    // A label in capitals has no ascenders or descenders: what the eye measures is the capitals' height, seven tenths
+    // of the type's size. At 11 px that is under 8 px of letter, and a reviewer reads it as 9 px type; at 13 px, as
+    // "about 10". Capitals are therefore held to 14 px (10 px of letter), on a touch button's caption as anywhere
+    // else. A lone letter or figure is not a label (a key cap, a count).
+    // (An acronym at the head of a sentence, "EVA" before the rest of a line, is not a label: it is the whole of what
+    //  the element says that is in capitals, or is made so by its style.)
+    else if (phone && size < 13.95 && (said.match(/[A-Za-z]/g) || []).length >= 2 && (cs.textTransform === 'uppercase' || !/[a-z]/.test(p.textContent)))
+      out.text.push(`capitals at ${size.toFixed(1)}px  ${name(p)}  “${said.slice(0, 28)}”`);
+    // The condensed face is narrow, and small on its body: its words are held to 13 px in any case of letter. (A
+    // gauge's "meals" and a banner's "the tank is almost empty" were 11 px of it, and read as 8.)
+    else if (phone && size < 12.95 && /[A-Za-z]/.test(said) && /condensed/i.test(cs.fontFamily.split(',')[0]))
+      out.text.push(`condensed type at ${size.toFixed(1)}px  ${name(p)}  “${said.slice(0, 28)}”`);
+    // a figure and its unit are written apart, everywhere the same way ("28 L", not "28L")
+    if (/\d(L|km|m)\b/.test(said) && !/\d(L|km|m)\b[-/]/.test(said)) out.text.push(`a figure run into its unit  ${name(p)}  “${said.slice(0, 28)}”`);
+  }
+
+  // ---- what the map letters on its canvas: the page cannot be asked, so the map says what it drew (ui/map.js), and
+  //      it is held to the page's own sizes
+  if (root.classList.contains('mg-compact') && (document.getElementById('mg-map') || { style: {} }).style.display === 'block') {
+    const told = new Set();
+    for (const l of (window.__UI && window.__UI.mapLettering) || []) {
+      const least = l.caps ? 13.95 : 11.95, key = `${l.caps ? 'capitals' : 'lettering'} at ${(+l.size).toFixed(1)}px`;
+      if (l.size < least && !told.has(key)) { told.add(key); out.text.push(`${key}  on the map's canvas  “${String(l.text).slice(0, 28)}”`); }
+    }
+  }
+
+  // ---- the round touch buttons stand apart: 12 px between any two, rim to rim. (The candle, which spends something,
+  //      stood 6 px from RUN, and JUMP 9 px from the action button.) Where they stand does not change with what they
+  //      show, so one that is out of sight just now (the action button with nothing in reach) is measured all the same.
+  {
+    const rounds = [...root.querySelectorAll('#mg-touch > .mg-tbtn')].filter((n) => {
+      if (styleOf(n).display === 'none' || styleOf(n.parentElement).display === 'none' || !root.classList.contains('is-playing') || root.classList.contains('is-modal')) return false;
+      const r = n.getBoundingClientRect();
+      return r.width > 20 && parseFloat(styleOf(n).borderTopLeftRadius) >= Math.min(r.width, r.height) / 2 - 1;
+    });
+    for (let i = 0; i < rounds.length; i++) for (let j = i + 1; j < rounds.length; j++) {
+      const a = rounds[i].getBoundingClientRect(), b = rounds[j].getBoundingClientRect();
+      const gap = Math.hypot((a.left + a.right - b.left - b.right) / 2, (a.top + a.bottom - b.top - b.bottom) / 2) - (a.width + b.width) / 2;
+      if (gap < 11.5) out.targets.push(`${Math.max(0, Math.round(gap))} px apart  ${name(rounds[i])} and ${name(rounds[j])}`);
+    }
+  }
+
+  // ---- things a thumb presses: 44 px each way (a switch is pressed by its row), and inside the safe area
+  /**
+   * The size the style sheets give a slider's handle. It is a pseudo-element, which the page cannot measure, so the
+   * rules that style it are read instead: those whose selector, less the pseudo-element, matches the slider, the more
+   * specific and the later winning; and the value they give is resolved to pixels on a probe beside the slider.
+   */
+  const thumbSize = (input) => {
+    const found = { width: null, height: null };
+    const weigh = (sel) => (sel.match(/#/g) || []).length * 10000 + (sel.match(/\.|\[|:(?!:)/g) || []).length * 100 + (sel.match(/(^|[\s>+~])[a-z]/gi) || []).length;
+    let order = 0;
+    const visit = (rules) => {
+      for (const rule of rules) {
+        if (rule.cssRules && rule.media) { if (matchMedia(rule.media.mediaText).matches) visit(rule.cssRules); continue; }
+        if (!rule.selectorText || !/::-webkit-slider-thumb/.test(rule.selectorText)) continue;
+        for (const sel of rule.selectorText.split(',')) {
+          if (!/::-webkit-slider-thumb\s*$/.test(sel)) continue;
+          // (a state such as :hover or :active is not how it stands at rest)
+          const base = sel.replace(/::-webkit-slider-thumb\s*$/, '').trim();
+          if (/:(hover|active|focus)/.test(base)) continue;
+          let hit = false;
+          try { hit = input.matches(base || '*'); } catch (e) { hit = false; }
+          if (!hit) continue;
+          for (const prop of ['width', 'height']) {
+            const val = rule.style.getPropertyValue(prop);
+            if (!val) continue;
+            const rank = (rule.style.getPropertyPriority(prop) ? 1e9 : 0) + weigh(base) * 1000 + (++order);
+            if (!found[prop] || rank >= found[prop].rank) found[prop] = { val, rank };
+          }
+        }
+      }
+    };
+    for (const sheet of document.styleSheets) { try { visit(sheet.cssRules); } catch (e) { /* a sheet from elsewhere */ } }
+    const probe = document.createElement('i'), ics = styleOf(input);
+    probe.style.cssText = 'position:absolute;visibility:hidden;display:block;padding:0;border:0;box-sizing:border-box';
+    for (const prop of ['width', 'height']) {
+      if (!found[prop]) continue;
+      for (const v of found[prop].val.match(/--[\w-]+/g) || []) probe.style.setProperty(v, ics.getPropertyValue(v));
+      probe.style.setProperty(prop, found[prop].val);
+    }
+    input.parentElement.appendChild(probe);
+    const r = probe.getBoundingClientRect();
+    probe.remove();
+    return found.width && found.height ? { w: r.width, h: r.height } : null;
+  };
+  const SEL = 'button, [role="button"], [role="tab"], [role="radio"], [role="switch"], input[type="range"]';
+  for (const n of root.querySelectorAll(SEL)) {
+    if (n.disabled || !shown(n) || styleOf(n).pointerEvents === 'none') continue;
+    const hitNode = n.classList.contains('mg-switch') ? (n.closest('.set-row') || n) : n;
+    const r = hitNode.getBoundingClientRect();
+    const v = visiblePart(hitNode);
+    if (!onScreen(v) || v.right - v.left < 1 || v.bottom - v.top < 1) continue;      // scrolled out of its list: reachable by scrolling
+    if (r.width < 43.5 || r.height < 43.5) out.targets.push(`${Math.round(r.width)}x${Math.round(r.height)}  ${name(n)}  “${words(n)}”`);
+    // (what is pressed is the row, but what is seen is the switch: it is a thumb high as well. And a slider is worked
+    //  by its handle, which is a thumb each way: the fifth review measured handles 44 by 32 and switches 56 by 32 on
+    //  rows that passed here.)
+    if (hitNode !== n) { const own = n.getBoundingClientRect(); if (own.height < 43.5 || own.width < 43.5) out.targets.push(`${Math.round(own.width)}x${Math.round(own.height)}  the switch itself: ${name(n)}  “${words(n)}”`); }
+    if (n.matches('input[type="range"]')) { const th = thumbSize(n); if (!th || th.w < 43.5 || th.h < 43.5) out.targets.push(`${th ? Math.round(th.w) + 'x' + Math.round(th.h) : 'unmeasured'}  the handle of ${name(n)}  “${words(n)}”`); }
+    // cut by the edge of a scrolling row (a tab off the side) or outside the safe area
+    const cutX = v.left > r.left + 1 || v.right < r.right - 1;
+    if (cutX || r.left < sl - 0.5 || r.right > W - sr + 0.5 || r.top < st - 0.5 || (r.bottom > H - sb + 0.5 && v.bottom > H - sb + 0.5))
+      out.outside.push(`[${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.right)},${Math.round(r.bottom)}]  ${name(n)}  “${words(n)}”`);
+  }
+
+  // ---- anything drawn as a button is one: a ring or a frame round a single glyph, smaller than a thumb, with
+  //      nothing larger round it that is itself a button. (A "?" in an 18 px ring under the suit's dial was the only
+  //      sign that the panel it stood on could be pressed.) Key caps, a legend's swatches and a card's emblem are not.
+  for (const n of root.querySelectorAll('span, i, b, em, div')) {
+    if (n.closest('button, [role="tab"], [role="radio"], [role="switch"], .map-legend, .mg-kbd, .toast .ti, .ring, svg, #mg-boot, .sr, .badge, .chip, .diff')) continue;
+    const said = n.textContent.trim();
+    if (said.length > 2 || (!said && !n.querySelector(':scope > svg'))) continue;
+    if (n.children.length > 1 || !shown(n)) continue;
+    const cs = styleOf(n);
+    if (!['Top', 'Right', 'Bottom', 'Left'].every((e) => cs['border' + e + 'Style'] === 'solid' && parseFloat(cs['border' + e + 'Width']) >= 1 && !/, 0\)$|transparent/.test(cs['border' + e + 'Color']))) continue;
+    const r = n.getBoundingClientRect();
+    if (r.width < 12 || r.height < 12 || (r.width >= 43.5 && r.height >= 43.5)) continue;
+    if (parseFloat(cs.borderTopLeftRadius) < Math.min(r.width, r.height) * 0.2) continue;
+    if (!onScreen(visiblePart(n))) continue;
+    out.targets.push(`${Math.round(r.width)}x${Math.round(r.height)}  drawn as a button: ${name(n)}  “${said}”`);
+  }
+
+  // ---- a dialog's own buttons (Begin, Cancel, Done, Start the day) are on the screen without scrolling for them
+  for (const n of root.querySelectorAll('#mg-panel .btns button, #mg-panel .sheet-ft button, #mg-panel .comms-ft button, #mg-panel .wake, #mg-panel .diff .go')) {
+    if (!shown(n)) continue;
+    const r = n.getBoundingClientRect(), v = visiblePart(n);
+    if (v.bottom - v.top < r.height - 1 || r.bottom > H - sb + 0.5) out.outside.push(`below the fold: ${name(n)}  “${words(n)}”`);
+  }
+
+  // ---- text cut off by its own box (an ellipsis, a clamped line, a clipped tab)
+  for (const n of root.querySelectorAll('*')) {
+    if (!n.firstChild || n.closest('canvas, svg, .sr, #mg-boot')) continue;
+    const cs = styleOf(n);
+    const clipsX = cs.textOverflow === 'ellipsis' || (cs.overflowX === 'hidden' && cs.whiteSpace === 'nowrap');
+    const clamps = cs.webkitLineClamp && cs.webkitLineClamp !== 'none';
+    if (!clipsX && !clamps) continue;
+    if (!n.textContent.trim() || !shown(n)) continue;
+    if ((clipsX && n.scrollWidth > n.clientWidth + 1) || (clamps && n.scrollHeight > n.clientHeight + 2)) out.cut.push(`${name(n)}  “${n.textContent.trim().slice(0, 40)}”`);
+  }
+
+  // ---- a card's note or a line of the log that the game itself cut short, in the middle of a sentence, to make it
+  //      fit ("Your stores, the fabricator and…"): what is said on the HUD is a whole sentence or it is rewritten
+  for (const n of root.querySelectorAll('.toast .t3, .toast .t2, #mg-log .mg-line .tx')) {
+    if (shown(n) && /…\s*$/.test(n.textContent)) out.cut.push(`cut short by the game: ${name(n)}  “${n.textContent.trim().slice(-40)}”`);
+  }
+
+  // ---- every line of text on the screen, as the box it is drawn in (the part its scrolling regions leave showing)
+  /** The layer a thing is drawn in: text in one layer is laid out against the rest of that layer. The HUD, the toasts and the touch controls are one. */
+  const layerOf = (n) => { let a = n; while (a.parentElement && a.parentElement !== root) a = a.parentElement; return /^mg-(hud|toast|touch)$/.test(a.id) ? 'play' : (a.id || a.className); };
+  /** The block a text node's line belongs to: lines of one paragraph are set by the browser and are not compared with each other. */
+  const blockOf = (n) => { for (let a = n; a && a !== root; a = a.parentElement) if (styleOf(a).display !== 'inline') return a; return root; };
+  /** The box that clips a thing: its scrolling and clipping ancestors, and itself where it clips its own text. */
+  const clipOf = (p) => {
+    let box = { left: 0, top: 0, right: W, bottom: H };
+    for (let a = p; a && a !== root; a = a.parentElement) {
+      const cs = styleOf(a);
+      if (/(auto|scroll|hidden|clip)/.test(cs.overflowY + cs.overflowX)) {
+        const c = a.getBoundingClientRect();
+        box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
+      }
+    }
+    return box;
+  };
+  const lines = [];
+  const perParent = new Map();
+  const range = document.createRange();
+  const tw2 = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  while (tw2.nextNode()) {
+    const t = tw2.currentNode;
+    if (!t.nodeValue.trim()) continue;
+    const p = t.parentElement;
+    if (!p || p.closest('sub, sup, .sr, canvas, svg, #mg-boot, #mg-rotate, [aria-hidden="true"]')) continue;
+    let info = perParent.get(p);
+    if (!info) { info = { shown: shown(p) }; if (info.shown) { info.clip = clipOf(p); info.layer = layerOf(p); info.block = blockOf(p); } perParent.set(p, info); }
+    if (!info.shown) continue;
+    range.selectNodeContents(t);
+    for (const r of range.getClientRects()) {
+      if (r.width < 2 || r.height < 4) continue;
+      const c = info.clip;
+      const v = { left: Math.max(r.left, c.left), top: Math.max(r.top, c.top), right: Math.min(r.right, c.right), bottom: Math.min(r.bottom, c.bottom) };
+      if (v.right - v.left < 2 || v.bottom - v.top < 3) continue;                 // scrolled out of its list, or clipped away
+      lines.push({ full: r, v, p, t, layer: info.layer, block: info.block });
+    }
+  }
+  const said = (l) => l.t.nodeValue.replace(/\s+/g, ' ').trim().slice(0, 26);
+
+  // ---- text printed over other text (rows of a list that run into each other; a badge on top of a name)
+  const pairs = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const a = lines[i];
+    for (let j = i + 1; j < lines.length; j++) {
+      const b = lines[j];
+      if (a.layer !== b.layer || a.block === b.block) continue;
+      const iw = Math.min(a.v.right, b.v.right) - Math.max(a.v.left, b.v.left);
+      const ih = Math.min(a.v.bottom, b.v.bottom) - Math.max(a.v.top, b.v.top);
+      if (iw < 3 || ih < 0.4 * Math.min(a.v.bottom - a.v.top, b.v.bottom - b.v.top)) continue;
+      const key = name(a.p) + '|' + name(b.p) + '|' + said(a) + '|' + said(b);
+      if (pairs.has(key)) continue;
+      pairs.add(key);
+      out.over.push(`“${said(a)}” (${name(a.p)}) and “${said(b)}” (${name(b.p)}) share [${Math.round(Math.max(a.v.left, b.v.left))},${Math.round(Math.max(a.v.top, b.v.top))} ${Math.round(iw)}x${Math.round(ih)}]`);
+    }
+  }
+
+  // ---- a badge, a chip or a button drawn over text that is not its own (its frame and icon can cover a word
+  //      where its own lettering does not touch it)
+  for (const n of root.querySelectorAll('.badge, .chip, .mg-btn')) {
+    if (!shown(n)) continue;
+    const r = n.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) continue;
+    const layer = layerOf(n);
+    for (const l of lines) {
+      if (l.layer !== layer || n.contains(l.p) || l.p.contains(n)) continue;
+      const iw = Math.min(r.right, l.v.right) - Math.max(r.left, l.v.left), ih = Math.min(r.bottom, l.v.bottom) - Math.max(r.top, l.v.top);
+      if (iw < 3 || ih < 0.4 * (l.v.bottom - l.v.top)) continue;
+      const key = name(n) + '|' + name(l.p) + '|' + said(l);
+      if (pairs.has(key)) continue;
+      pairs.add(key);
+      out.over.push(`“${said(l)}” (${name(l.p)}) is under ${name(n)} “${words(n)}”`);
+    }
+  }
+
+  // ---- text cut by the edge of the box it is in or by the screen: a line that is partly showing and partly not
+  //      (a line sliced through by a card's edge; a word hanging off the side of its button). Text that a scrolling
+  //      region has scrolled out of sight is not this: a scrolling region says there is more with its cue (below).
+  const BOXES = '.card, .rcp, .dlg, .toast, .choice, .stat, .inv-row, .mg-btn, .badge, .chip, .menu-item, .diff, .set-row, .obj, .mg-line, .row, #mg-prompt, .tabs button, .col-bar, .pane-hd, .map-info, .map-status, .scr-hd';
+  const cutSeen = new Set();
+  for (const l of lines) {
+    const f = l.full;
+    const off = f.left < -1 || f.right > W + 1 || f.top < -1 || f.bottom > H + 1;
+    const box = l.p.closest(BOXES);
+    let outBox = false;
+    // (up and down, a line's box is its type's full height, a third of it empty over the capitals and under the
+    //  baseline: a tight row may let that empty part hang out of it and still hold every letter)
+    if (box) {
+      const r = box.getBoundingClientRect(), slack = Math.max(1.5, 0.34 * parseFloat(styleOf(l.p).fontSize));
+      outBox = f.left < r.left - 1.5 || f.right > r.right + 1.5 || f.top < r.top - slack || f.bottom > r.bottom + slack;
+    }
+    // sliced: more than a sliver of the line is hidden by a clipping ancestor that does not scroll
+    let sliced = false;
+    const hidX = (f.right - f.left) - (l.v.right - l.v.left), hidY = (f.bottom - f.top) - (l.v.bottom - l.v.top);
+    if (hidX > 2 || hidY > 2) {
+      for (let a = l.p; a && a !== root; a = a.parentElement) {
+        const cs = styleOf(a);
+        // (each way on its own: a list that scrolls down and clips sideways cuts nothing by its foot)
+        const clipX = /(hidden|clip)/.test(cs.overflowX), clipY = /(hidden|clip)/.test(cs.overflowY);
+        if (!clipX && !clipY) continue;
+        if (cs.textOverflow === 'ellipsis' || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) continue;      // reported as "cut" above
+        const c = a.getBoundingClientRect();
+        if ((clipX && (f.left < c.left - 1 || f.right > c.right + 1)) || (clipY && (f.top < c.top - 1 || f.bottom > c.bottom + 1))) { sliced = name(a); break; }
+      }
+    }
+    if (!off && !outBox && !sliced) continue;
+    const key = name(l.p) + said(l);
+    if (cutSeen.has(key)) continue;
+    cutSeen.add(key);
+    out.clipped.push(`${off ? 'off the screen' : sliced ? 'cut by ' + sliced : 'outside its ' + name(box)}: “${said(l)}” (${name(l.p)})`);
+  }
+
+  // ---- a box that clips and does not scroll, with more in it than it shows
+  const DECOR = '#mg-root, .map-wrap, .tk, .fl, .strip, #mg-compass, #mg-compass *, .ring, canvas, svg, svg *, .sr, #mg-boot, #mg-boot *, #mg-flash, #mg-joy, #mg-joy *, .prog, .prog *';
+  for (const n of root.querySelectorAll('*')) {
+    if (n.matches(DECOR) || !n.firstElementChild && !n.textContent.trim()) continue;
+    const cs = styleOf(n);
+    const clipY = /(hidden|clip)/.test(cs.overflowY), clipX = /(hidden|clip)/.test(cs.overflowX);
+    if (!clipY && !clipX) continue;
+    if (cs.textOverflow === 'ellipsis' || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none')) continue;          // reported as "cut" above
+    if (!n.textContent.trim() || !shown(n)) continue;
+    const more = (clipY && n.scrollHeight > n.clientHeight + 2) || (clipX && n.scrollWidth > n.clientWidth + 2);
+    if (more) out.clipped.push(`holds more than it shows (${n.scrollWidth}x${n.scrollHeight} in ${n.clientWidth}x${n.clientHeight}): ${name(n)}  “${n.textContent.replace(/\s+/g, ' ').trim().slice(0, 30)}”`);
+  }
+
+  // ---- a scrolling region with more below says so (the "More" cue), and one that is at its end does not
+  for (const n of root.querySelectorAll('.mg-scroll')) {
+    if (!shown(n)) continue;
+    // (more than its own padding at the foot: a line cut 8 px short in a box with no padding is "more" too)
+    const below = n.scrollHeight - n.clientHeight - n.scrollTop > Math.min(12, (parseFloat(styleOf(n).paddingBottom) || 0) + 5);
+    const cue = n.querySelector(':scope > .more-cue');
+    const cueShown = !!cue && getComputedStyle(cue).visibility === 'visible';
+    if (below && !cueShown) out.clipped.push(`scrolls with nothing to say so: ${name(n)}`);
+  }
+  return out;
+}
+
+/**
+ * How much of the screen the HUD stands on. Everything in the play layers (the HUD, the touch controls, the cards)
+ * that is showing and paints something (a plate, a frame, a picture, a line of text) is laid on a grid of 2 px
+ * cells as the box it is drawn in, with its corners rounded as they are drawn (a round button is its disc), and
+ * cut by whatever clips it. Two things are left out: the marker over a place in the world, which is a mark on the
+ * world and not furniture; and the soft shades behind the full HUD's top and bottom rows, which darken the picture
+ * and hide nothing.
+ *
+ * Runs in the browser. Returns shares between 0 and 1: `all` of the whole screen, `middle` of the middle of it (the
+ * middle two fifths of its width by the middle half of its height: where the astronaut and the way ahead are), `top`
+ * of its top third; and `parts`, each block's own share of the screen, largest first (a block is a
+ * child of a layer: the gauges, the compass, a button), which says what is taking the room.
+ */
+export function coverInPage() {
+  const W = window.innerWidth, H = window.innerHeight, C = 2;
+  const gw = Math.ceil(W / C), gh = Math.ceil(H / C);
+  const grid = new Uint8Array(gw * gh);
+  const styleOf = (n) => getComputedStyle(n);
+  const layers = ['mg-hud', 'mg-touch', 'mg-toast'].map((id) => document.getElementById(id)).filter(Boolean);
+  const shown = (n) => {
+    if (styleOf(n).visibility === 'hidden') return false;
+    for (let a = n; a && a !== document.body; a = a.parentElement) {
+      const cs = styleOf(a);
+      if (cs.display === 'none' || +cs.opacity < 0.05) return false;
+    }
+    const r = n.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+  const alpha = (c) => { const m = /rgba?\(([^)]+)\)/.exec(c || ''); if (!m) return 0; const p = m[1].split(/[,/]/).map(parseFloat); return p.length > 3 ? p[3] : 1; };
+  const clipOf = (n) => {
+    let box = { left: 0, top: 0, right: W, bottom: H };
+    for (let a = n.parentElement; a && !layers.includes(a) && a !== document.body; a = a.parentElement) {
+      const cs = styleOf(a);
+      if (/(hidden|clip|auto|scroll)/.test(cs.overflowY + cs.overflowX)) {
+        const c = a.getBoundingClientRect();
+        box = { left: Math.max(box.left, c.left), top: Math.max(box.top, c.top), right: Math.min(box.right, c.right), bottom: Math.min(box.bottom, c.bottom) };
+      }
+    }
+    return box;
+  };
+  const blockOf = (n) => { let a = n; while (a.parentElement && !layers.includes(a.parentElement)) a = a.parentElement; return a.id ? '#' + a.id : '.' + [...a.classList].slice(0, 2).join('.'); };
+  const parts = new Map();
+  const paint = (r, rad, clip, owner) => {
+    const l = Math.max(r.left, clip.left), t = Math.max(r.top, clip.top), rt = Math.min(r.right, clip.right), b = Math.min(r.bottom, clip.bottom);
+    if (rt - l < 1 || b - t < 1) return;
+    const cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2, hw = r.width / 2, hh = r.height / 2;
+    rad = Math.min(rad, hw, hh);
+    let n = 0;
+    for (let y = Math.max(0, Math.floor(t / C)); y < Math.min(gh, Math.ceil(b / C)); y++) {
+      for (let x = Math.max(0, Math.floor(l / C)); x < Math.min(gw, Math.ceil(rt / C)); x++) {
+        if (rad > 0.5) {
+          const dx = Math.max(Math.abs((x + 0.5) * C - cx) - (hw - rad), 0), dy = Math.max(Math.abs((y + 0.5) * C - cy) - (hh - rad), 0);
+          if (dx * dx + dy * dy > rad * rad) continue;
+        }
+        const i = y * gw + x;
+        if (!grid[i]) { grid[i] = 1; n++; }
+      }
+    }
+    if (n) parts.set(owner, (parts.get(owner) || 0) + n);
+  };
+  const range = document.createRange();
+  for (const layer of layers) {
+    for (const n of layer.querySelectorAll('*')) {
+      if (n.closest('#mg-way, .hud-scrim, .sr') || (n.parentElement && n.parentElement.closest('svg')) || !shown(n)) continue;
+      const cs = styleOf(n), r = n.getBoundingClientRect();
+      const plate = alpha(cs.backgroundColor) > 0.04 || cs.backgroundImage !== 'none';
+      const frame = ['Top', 'Right', 'Bottom', 'Left'].some((e) => parseFloat(cs['border' + e + 'Width']) >= 1 && cs['border' + e + 'Style'] !== 'none' && alpha(cs['border' + e + 'Color']) > 0.04);
+      const clip = clipOf(n), owner = blockOf(n);
+      if (plate || frame || n.tagName.toLowerCase() === 'svg') {
+        const br = cs.borderTopLeftRadius || '0';
+        paint(r, /%/.test(br) ? parseFloat(br) / 100 * Math.min(r.width, r.height) : parseFloat(br) || 0, clip, owner);
+      }
+      for (const t of n.childNodes) {
+        if (t.nodeType !== 3 || !t.nodeValue.trim()) continue;
+        range.selectNodeContents(t);
+        for (const q of range.getClientRects()) if (q.width > 1 && q.height > 1) paint(q, 0, clip, owner);
+      }
+    }
+  }
+  const share = (x0, y0, x1, y1) => {
+    let on = 0, of = 0;
+    for (let y = Math.floor(y0 / C); y < Math.ceil(y1 / C); y++) for (let x = Math.floor(x0 / C); x < Math.ceil(x1 / C); x++) { of++; if (grid[y * gw + x]) on++; }
+    return of ? on / of : 0;
+  };
+  return {
+    all: share(0, 0, W, H), middle: share(W * 0.3, H / 4, W * 0.7, H * 3 / 4), top: share(0, 0, W, H / 3),
+    parts: [...parts.entries()].map(([k, v]) => [k, +(v / (gw * gh)).toFixed(4)]).sort((a, b) => b[1] - a[1]),
+  };
+}
+
+/**
+ * True once nothing on the page is part-way through a finite animation or transition. Runs in the browser: wait
+ * for it before measuring, or a dialog still fading in is measured as not there at all. (An animation's clock only
+ * moves when a frame is drawn, and software rendering under load draws one a second.)
+ */
+export function settledInPage() {
+  return document.getAnimations().every((a) => {
+    if (a.playState !== 'running') return true;
+    const t = a.effect && a.effect.getComputedTiming ? a.effect.getComputedTiming() : null;
+    return !!t && !isFinite(t.endTime);
+  });
+}
+
+/** Offender lines from an audit, as one list (for a test's detail), most serious kinds first. */
+export function auditLines(a) {
+  return [...(a.over || []).map((x) => 'over: ' + x), ...(a.clipped || []).map((x) => 'clipped: ' + x), ...a.outside.map((x) => 'outside: ' + x), ...a.cut.map((x) => 'cut: ' + x),
+    ...a.targets.map((x) => 'target: ' + x), ...a.text.map((x) => 'text: ' + x)];
+}

@@ -1,0 +1,12 @@
+/* The game's interface. Built by tools/build.mjs into game/game.css. */
+@import "@fontsource/barlow-condensed/latin-500.css";
+@import "@fontsource/barlow-condensed/latin-600.css";
+@import "@fontsource/barlow/latin-400.css";
+@import "@fontsource/barlow/latin-500.css";
+@import "@fontsource/barlow/latin-600.css";
+@import "@fontsource/jetbrains-mono/latin-500.css";
+@import "./css/base.css";
+@import "./css/hud.css";
+@import "./css/touch.css";
+@import "./css/menus.css";
+@import "./css/screens.css";

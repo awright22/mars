@@ -1,0 +1,172 @@
+import { canPhoto, enterPhoto } from './photo.js';
+import { log, showOverlay, toast, uiHooks } from '../ui/dom.js';
+import { DIFFICULTIES, S, isBase, rescueSolFor } from './state.js';
+import { Snd } from '../audio/sound.js';
+import { Save, applyState, checkpoint, loadSavedData, restoreCheckpoint, saveGame, unreadableSaveExists, wipeSave } from './save.js';
+import { tryLock } from './input.js';
+import { initStorms, updateSunDir } from './sim.js';
+import { World, addSitePads, buildHabColony, buildStorySites, pickSpawn } from '../world/build.js';
+import { addDepositPads, buildBaseSites } from '../world/base-sites.js';
+import { preloadModels } from '../world/models.js';
+import { BASE_MODELS } from './base.js';
+import { frameMove, frameYaw, player, syncPlayerPos } from './player.js';
+import { R } from '../planet/constants.js';
+import { bearingTo, fmtClock } from '../ui/hud.js';
+import { regionName } from '../planet/features.js';
+import { llToVec } from '../planet/geo.js';
+import { initRoverAt } from './rover.js';
+import { initWear } from './wear.js';
+import { startOpening } from './opening.js';
+import { setSetting } from '../ui/settings.js';
+import { _v1 } from '../core/scratch.js';
+import { applyAudioSettings, menuHooks, showPauseMenu, showTitle } from '../ui/menus.js';
+// Starting, continuing, pausing, dying.
+export function tryReload() {
+  try { location.reload(); } catch (e) {}
+  // if the host blocked reload, the overlay stays up (keep:true) — say why
+  setTimeout(() => toast('SYSTEM', 'Reload blocked by host page', 'Refresh the page manually to restart.'), 400);
+}
+export function die(cause) {
+  if (S.over) return;
+  S.over = true;
+  S.dead = cause;
+  Snd.alarm(false); Snd.testLoop(false); Snd.play('death'); Snd.rumble(0);
+  const iron = S.diff === 'iron';
+  if (iron) wipeSave();
+  const buttons = [];
+  const back = !iron && Save.checkpoint ? Save.checkpoint.sol : 0;
+  if (back) buttons.push({ label: `Wake at dawn (Sol ${back})`, fn: () => restoreCheckpoint() });
+  buttons.push({ label: 'Restart from Sol 1', ghost: !iron, keep: true, fn: () => { wipeSave(); tryReload(); } });
+  showOverlay({
+    kind: 'death',
+    kicker: `Sol ${S.sol} · ${DIFFICULTIES[S.diff].name}` + (iron ? ' · save deleted' : ''),
+    title: 'You died on Mars',
+    // (the sol he reached, not "13 sols survived" for a death on Sol 13: he saw twelve of them out)
+    stats: [['Sol reached', S.sol], ['Driven', `${(S.stats.driven / 1000).toFixed(1)}<small>km</small>`], ['Meals grown', S.stats.potatoes + (S.stats.produce || 0)]],
+    // (what waking at dawn costs is said: it was a button with a sol in it and nothing about what is lost)
+    body: cause + (iron ? '\n\nYou knew the deal.' : '\n\nNobody plants the flag on the first try.') +
+      (back ? `\n\n<b>Wake at dawn</b> takes you back to the last dawn you saw, on Sol ${back}: what you have done since is undone.` : ''),
+    buttons,
+  });
+}
+
+export function showPause() {
+  if (S.uiOpen || S.over || !S.started || S.mode === 'cutscene') return;
+  saveGame();
+  showPauseMenu({
+    sol: S.sol, time: fmtClock(), diffName: DIFFICULTIES[S.diff].name, rescueSol: S.rescueSol, base: isBase(),
+    region: regionName(_v1.copy(player.pos).normalize()), uplink: !!S.link.connected,
+    onResume: () => tryLock(),
+    onPhoto: canPhoto() ? () => { enterPhoto(); } : null,
+    onRestart: () => { wipeSave(); tryReload(); },
+    onQuit: () => { saveGame(); tryReload(); },
+  });
+}
+// the interface pauses the game itself in two cases: a phone turned upright, and before a reload
+uiHooks.pause = showPause;
+menuHooks.save = saveGame;
+// (on foot it is the helmet's view; in the rover, the driver's seat)
+menuHooks.view = {
+  can: () => S.started && !S.over && (S.mode === 'walk' || S.mode === 'rover'), seat: () => S.mode === 'rover',
+  get: () => (S.mode === 'rover' ? !!S.cockpit : !!S.firstPerson), set: (on) => { if (S.mode === 'rover') setSetting('cabView', !!on); else S.firstPerson = !!on; },
+};
+
+// ============================================================
+// 33. BOOT & START
+// ============================================================
+export let bootPhase = 'init';
+export function newGame(diffKey, kind = 'story', o = null) {
+  S.kind = kind === 'base' ? 'base' : 'story';
+  S.diff = diffKey;
+  S.rescueSol = rescueSolFor(diffKey, S.kind);
+  S.drainMult = DIFFICULTIES[diffKey].drain;
+  initStorms();                                   // before pickSpawn: it rejects storm cells
+  World.spawn = pickSpawn(Math.random);
+  // start the global sun so it is ~08:00 LOCAL time at the crash site
+  S.tod = ((-(World.spawn.lon + 58.4) / 360) % 1 + 1) % 1;
+  updateSunDir();
+  buildWorldAtSpawn();
+  // cold open: wake ~85m from the hab, suit leaking, facing home
+  player.q.copy(World.hab.quaternion);
+  frameMove(player.q, 0.3, 0.9, 85, R);
+  syncPlayerPos();
+  frameYaw(player.q, bearingTo(player.pos, World.hab.position, player.q));
+  player.alt = 0; syncPlayerPos();
+  S.started = true;
+  // (with a mouse: the film's Skip is a button, and a locked mouse has no pointer to press it with. The lock is taken
+  //  when the film is over; a browser that refuses it then, for want of a click, gives it at the first click on the picture.)
+  const film = !!(o && o.film);
+  if (!film) tryLock();
+  Snd.wind(0.2);
+  checkpoint();
+  // (The game begins with a film of how he came to be here, when it is begun from the title: game/opening.js. Its
+  //  first words are said when the film is over, and at once when there is none.)
+  const begin = () => {
+    if (film) tryLock();
+    log('Suit leaking: 46 on the gauge and falling. The Hab is that way. Run.', 'suit');
+    const ll = `lat ${World.spawn.lat.toFixed(1)}°, lon ${World.spawn.lon.toFixed(1)}°E — ${regionName(World.spawn.v)}`;
+    setTimeout(() => log(`Landing site logged: ${ll}. Not Arcadia. Not close.`), 5500);
+  };
+  if (film) startOpening(begin); else begin();
+}
+/** The opening film is shown unless the address says not to ("nofilm": the tests, which start a hundred games). */
+const wantFilm = () => { try { return !new URLSearchParams(location.search).has('nofilm'); } catch { return true; } };
+export function continueGame(saved) {
+  S.kind = saved.kind === 'base' ? 'base' : 'story';
+  S.diff = saved.diff || 'survival';
+  S.rescueSol = rescueSolFor(S.diff, S.kind);
+  S.drainMult = DIFFICULTIES[S.diff].drain;
+  World.spawn = { lat: saved.spawn.lat, lon: saved.spawn.lon, v: llToVec(saved.spawn.lat, saved.spawn.lon) };
+  buildWorldAtSpawn();
+  initStorms();
+  applyState(saved);
+  S.started = true;
+  Save.checkpoint = saved;
+  tryLock();
+  Snd.wind(0.2);
+  log(`Sol ${S.sol}. Back at it. The notes pick up where they stopped.`);
+  if (saved.migrated && saved.migrated.includes('pacing')) {
+    setTimeout(() => log(`Mission clock recalibrated: a sol now runs more than twice as long, and the launch moved to Sol ${S.rescueSol}. Your sol count was converted to match.`, 'control'), 6500);
+  }
+  if (saved.migrated && saved.migrated.includes('terrain')) {
+    setTimeout(() => log('Survey update: the planet is now built from real orbital elevation data. Same Mars, truer ground: your Hab has been re-seated on it.', 'control'), 2500);
+  }
+  // A run saved before the game's story changed: said plainly, once, on the screen and not only in the log.
+  if (saved.migrated && saved.migrated.includes('story')) {
+    const more = (saved.storyNotes || []).length ? ` On the way, ${saved.storyNotes.join(', and ')}.` : '';
+    setTimeout(() => showOverlay({
+      kicker: 'Saved game', title: 'Saved by an older version',
+      body: `This run was saved by an older version of the game, before its story changed. It carries on in the new story: you are Quinn, the advance mission Groundwork, and the way home is the ascent vehicle at Arcadia Station and the Tern in orbit.${more}\n\nYour sol, your supplies, your Hab and everything you built are as you left them.`,
+      buttons: [{ label: 'Carry on', fn: () => {} }],
+    }), 900);
+  }
+}
+export let worldBuilt = false;
+export function buildWorldAtSpawn() {
+  if (worldBuilt) return;
+  worldBuilt = true;
+  if (isBase()) addDepositPads();                 // (before the pads are handed to the terrain, which addSitePads does)
+  addSitePads(World.spawn);
+  buildHabColony(World.spawn);
+  initWear();                                     // (the paths he wears are mapped in the Hab's own frame)
+  initRoverAt(_v1.copy(World.rover.group.position).normalize(), 0.8);
+  buildStorySites();
+  if (isBase()) buildBaseSites();
+}
+/** A base has models the story does not: they are fetched when a base is begun or continued, and not before. */
+export function ensureKind(kind) { return kind === 'base' ? preloadModels(BASE_MODELS) : Promise.resolve(); }
+
+export function showStart() {
+  const saved = loadSavedData('story'), savedBase = loadSavedData('base');
+  const audio = () => { Snd.init(); Snd.resume(); applyAudioSettings(); };
+  const card = (d) => (d ? { sol: d.sol, diffName: DIFFICULTIES[d.diff || 'survival'].name, region: regionName(llToVec(d.spawn.lat, d.spawn.lon)) } : null);
+  showTitle({
+    saved: card(saved), savedBase: card(savedBase),
+    // (New Game asks which of the two games. While Base mode was being built it was asked only of a player who put
+    //  "?base" on the address.)
+    base: true,
+    unreadable: unreadableSaveExists(),
+    onContinue: (kind) => { audio(); return ensureKind(kind).then(() => continueGame(kind === 'base' ? savedBase : saved)); },
+    onNewGame: (diffKey, kind) => { audio(); return ensureKind(kind).then(() => newGame(diffKey, kind, { film: wantFilm() })); },
+  });
+}

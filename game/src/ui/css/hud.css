@@ -1,0 +1,971 @@
+/* The in-game HUD. Elements are built in ui/dom.js and updated in ui/hud.js. */
+#mg-hud { position: absolute; inset: 0; pointer-events: none; visibility: hidden; z-index: 5; }
+/* It fades in once, as the game starts. Under a menu it goes at once and comes back at once: when it faded back over
+   a third of a second, a slow frame after waking was a picture of the world with no HUD in it at all. */
+.is-playing #mg-hud { visibility: visible; animation: mg-fade-in .35s; }
+.is-playing.is-modal #mg-hud { visibility: hidden; }
+/* (the prompt sets its own visibility, so it says so too: it showed through a screen laid over the game) */
+.is-playing.is-modal #mg-prompt { visibility: hidden; }
+/* the launch: only the log stays */
+.is-cutscene #mg-hud > :not(#mg-log):not(.hud-scrim) { opacity: 0 !important; transition: opacity .6s; }
+
+/* soft darkening behind the top and bottom rows, so type holds over a bright sky and pale dust */
+.hud-scrim { position: absolute; left: 0; right: 0; height: 8.5rem; }
+.hud-scrim.top { top: 0; background: linear-gradient(to bottom, rgba(6, 4, 3, .34), rgba(6, 4, 3, .14) 55%, rgba(6, 4, 3, 0)); }
+.hud-scrim.bottom { bottom: 0; height: 9rem; background: linear-gradient(to top, rgba(6, 4, 3, .42), rgba(6, 4, 3, 0)); }
+
+/* ---------------------------------------------------------------- vitals (top left) */
+#mg-vitals { position: absolute; left: calc(var(--m) + var(--sal)); top: calc(var(--m) + var(--sat));
+  display: flex; align-items: center; gap: .875rem; padding: .625rem .9375rem .625rem .75rem;
+  background: var(--plate); border: 1px solid var(--line-2); border-radius: .25rem; }
+.suit { display: flex; flex-direction: column; align-items: center; gap: .3125rem; flex: none; }
+.suit .dial { position: relative; width: 4.25rem; height: 4.25rem; }
+.ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); fill: none; }
+.ring .trk { stroke: rgba(245, 240, 232, .2); stroke-width: 3; }
+.ring .arc { stroke: var(--ink); stroke-width: 3.5; transition: stroke-dashoffset .35s linear, stroke .3s; }
+.ring .ticks { stroke: rgba(245, 240, 232, .34); stroke-width: 2.5; }
+.suit .in { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.suit .num { font: 600 1.625rem/1 var(--f-cond); letter-spacing: .01em; margin-top: .125rem; }
+.suit .lb { font: 500 .5625rem/1 var(--f-cond); letter-spacing: .14em; color: var(--ink-2); margin-top: .1875rem; white-space: nowrap; }
+.suit .st { font: 600 .6875rem/1 var(--f-cond); letter-spacing: .14em; color: var(--ink-2); text-transform: uppercase;
+  white-space: nowrap; min-height: .6875rem; }
+.suit.warn .arc { stroke: var(--accent); }
+.suit.warn .num, .suit.warn .st { color: var(--accent); }
+.suit.crit .arc { stroke: var(--danger); }
+.suit.crit .num, .suit.crit .st { color: var(--danger); }
+/* the ring pulses; the number itself stays lit, or the one figure that matters goes dark half the time */
+.suit.crit .dial .ring { animation: mg-pulse 1s steps(2, jump-none) infinite; }
+.suit.crit .num { color: #ff8f84; }
+.suit.fill .arc { stroke: var(--ok); }
+.suit.fill .st { color: var(--ok); }
+
+.res { display: grid; gap: .3125rem; padding-left: .875rem; border-left: 1px solid var(--line-2); }
+.res .row, #mg-rover .row { display: grid; grid-template-columns: 1rem 3.5rem 4.75rem 2.75rem .4375rem; align-items: center; column-gap: .5rem;
+  height: 1rem; }
+.row .ic { width: 1rem; height: 1rem; color: var(--ink-2); }
+.row .lb { font: 500 .75rem/1 var(--f-cond); letter-spacing: .1em; color: var(--ink-2); white-space: nowrap; }
+.row .tk { position: relative; height: .1875rem; background: rgba(245, 240, 232, .2); overflow: hidden; }
+.row .fl { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--ink); transform-origin: left center;
+  transition: transform .35s linear, background .3s; }
+.row .val { font: 600 .8125rem/1 var(--f-cond); letter-spacing: .03em; text-align: right; white-space: nowrap; }
+.row .val small { font-size: .82em; font-weight: 500; color: var(--ink-2); margin-left: .12em; letter-spacing: .06em; }
+/* (a percent sign stands against its number, as it does in the ring, the prompts and the dawn sheet: "100 %" beside "100%" read as two things) */
+#mg-root .val small.pc { margin-left: 0; }
+.row .tr { width: 0; height: 0; border-left: .21875rem solid transparent; border-right: .21875rem solid transparent; opacity: .85; }
+.row .tr.up { border-bottom: .3125rem solid var(--ok); }
+.row .tr.dn { border-top: .3125rem solid var(--ink-3); }
+.row.warn .fl { background: var(--accent); }
+.row.warn .val, .row.warn .ic, .row.warn .lb { color: var(--accent); }
+.row.crit .fl { background: var(--danger); }
+.row.crit .val, .row.crit .ic, .row.crit .lb { color: var(--danger); }
+.row.crit .ic { animation: mg-pulse 1s steps(2, jump-none) infinite; }
+.row.crit .tr.dn { border-top-color: var(--danger); }
+/* colour-blind-safe: low bars are hatched as well as tinted */
+.mg-cb .row.warn .fl, .mg-cb .row.crit .fl { background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(0, 0, 0, .55) 3px 5px); }
+/* the cold open is about one number: the leaking suit */
+.is-cold .res { display: none; }
+.is-cold #mg-vitals { padding-right: .75rem; }
+
+/* corner marks: the two instrument panels are framed like a suit display */
+#mg-vitals::before, #mg-vitals::after, #mg-tr::before, #mg-tr::after { content: ""; position: absolute; width: .5rem; height: .5rem; pointer-events: none; }
+#mg-vitals::before, #mg-tr::before { left: -1px; top: -1px; border-left: 1px solid var(--ink-3); border-top: 1px solid var(--ink-3); border-top-left-radius: .25rem; }
+#mg-vitals::after, #mg-tr::after { right: -1px; bottom: -1px; border-right: 1px solid var(--ink-3); border-bottom: 1px solid var(--ink-3); border-bottom-right-radius: .25rem; }
+.mg-compact #mg-tr::before, .mg-compact #mg-tr::after { display: none; }
+
+/* ---------------------------------------------------------------- compass (top centre) */
+#mg-compass { --cw: min(30rem, calc(100vw - 50rem)); position: absolute; left: 50%; top: calc(var(--m) - .375rem + var(--sat)); width: var(--cw); margin-left: calc(var(--cw) / -2); height: 3.875rem; }
+#mg-compass .strip { position: relative; height: 2.75rem; overflow: hidden; background: rgba(14, 12, 11, .62); border-radius: .25rem;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent); }
+#mg-compass .tape { position: absolute; left: 0; right: 0; bottom: .25rem; height: .5rem; border-bottom: 1px solid var(--ink-3);
+  background-repeat: repeat-x, repeat-x; background-position: 0 100%, 0 100%;
+  background-image: linear-gradient(to right, var(--ink-2) 0 1px, transparent 1px), linear-gradient(to right, var(--ink-3) 0 1px, transparent 1px);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
+#mg-compass .cards span { position: absolute; left: 0; bottom: .9375rem; width: 2rem; margin-left: -1rem; text-align: center;
+  font: 600 .9375rem/1 var(--f-cond); letter-spacing: .04em; color: var(--ink); text-shadow: var(--shadow-text); will-change: transform; }
+#mg-compass .cards span.minor { font-weight: 500; font-size: .6875rem; color: var(--ink-2); bottom: 1rem; }
+#mg-compass .cards span.north { color: var(--accent); }
+#mg-compass .marks .mk { position: absolute; left: 0; top: .0625rem; width: 1.5rem; height: 1.5rem; margin-left: -.75rem; display: grid; place-items: center;
+  color: var(--ink); will-change: transform; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8)); transition: opacity .2s; }
+#mg-compass .mk .ic { width: 1.1875rem; height: 1.1875rem; stroke-width: 1.8; }
+#mg-compass .mk.main { color: var(--accent); }
+#mg-compass .mk.quest { color: var(--cold); }
+#mg-compass .mk.danger { color: var(--danger); animation: mg-pulse .8s steps(2, jump-none) infinite; }
+/* behind you: pinned at the end of the strip with a mark that says which way to turn */
+#mg-compass .mk.off { opacity: .8; }
+#mg-compass .mk.off::after { content: ""; position: absolute; top: 50%; width: .3125rem; height: .3125rem; margin-top: -.1875rem; border-top: 1.5px solid currentColor; border-left: 1.5px solid currentColor; }
+#mg-compass .mk.off.left::after { left: -.5rem; transform: rotate(-45deg); }
+#mg-compass .mk.off.right::after { right: -.5rem; transform: rotate(135deg); }
+#mg-compass .caret { position: absolute; left: 50%; top: 2.75rem; width: 0; height: 0; margin-left: -.3125rem;
+  border-left: .3125rem solid transparent; border-right: .3125rem solid transparent; border-bottom: .375rem solid var(--accent);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .7)); }
+#mg-compass .dists { position: absolute; left: 0; right: 0; top: 3.125rem; height: 1.125rem; }
+#mg-compass .dists span { position: absolute; left: 0; top: 0; transform: translateX(-50%); white-space: nowrap; padding: .1875rem .375rem; border-radius: .125rem;
+  background: rgba(14, 12, 11, .6); font: 600 .6875rem/1 var(--f-cond); letter-spacing: .08em; color: var(--ink-2); text-transform: uppercase; }
+#mg-compass .dists span i { font-style: normal; }
+#mg-compass .dists span b { font-weight: 600; text-transform: none; letter-spacing: .03em; color: var(--ink); }
+#mg-compass .dists span.focus { color: var(--ink); letter-spacing: .12em; }
+/* a mark with no room for its name is a dot: turn toward it and it says what it is */
+#mg-compass .mk.dot .ic { display: none; }
+#mg-compass .mk.dot::before { content: ""; width: .3125rem; height: .3125rem; border-radius: 50%; background: currentColor; opacity: .75; }
+#mg-compass .dists span.main { color: var(--accent); }
+#mg-compass .dists span.quest { color: var(--cold); }
+#mg-compass .dists span.danger { color: var(--danger); }
+
+#mg-region { position: absolute; left: 50%; top: calc(var(--m) + var(--sat) + 4.25rem); transform: translateX(-50%); white-space: nowrap; padding: .25rem .625rem;
+  border-radius: .125rem; background: rgba(14, 12, 11, .6); font: 600 .6875rem/1 var(--f-cond); letter-spacing: .34em; text-indent: .34em; text-transform: uppercase; color: var(--ink); }
+#mg-region.enter { animation: mg-region-in 2.4s var(--ease); }
+@keyframes mg-region-in { 0% { opacity: 0; letter-spacing: .6em; text-indent: .6em; background: var(--accent-wash); } 30% { opacity: 1; } 100% { letter-spacing: .34em; text-indent: .34em; } }
+
+/* ---------------------------------------------------------------- alerts (under the compass) */
+#mg-alerts { position: absolute; left: 50%; top: calc(var(--m) + var(--sat) + 6.125rem); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: .375rem; }
+.alert { display: flex; align-items: center; gap: .5rem; padding: .375rem .9375rem .375rem .6875rem; white-space: nowrap;
+  background: var(--plate-strong); border: 1px solid var(--accent); border-radius: .1875rem; color: var(--accent);
+  font: 600 .875rem/1 var(--f-cond); letter-spacing: .14em; text-transform: uppercase; animation: mg-rise-in .3s var(--ease); }
+.alert .ic { width: 1.0625rem; height: 1.0625rem; }
+.alert small { font: 500 .75rem/1 var(--f-cond); letter-spacing: .08em; color: var(--ink-2); text-transform: none; margin-left: .25rem; }
+.alert.crit { background: var(--danger); border-color: var(--danger); color: #1c0705; }
+.alert.crit small { color: rgba(28, 7, 5, .8); }
+.alert.crit .ic { animation: mg-pulse .8s steps(2, jump-none) infinite; }
+.alert.cold { border-color: var(--cold); color: var(--cold); }
+
+/* ---------------------------------------------------------------- clock and mission (top right) */
+#mg-tr { position: absolute; right: calc(var(--m) + var(--sar)); top: calc(var(--m) + var(--sat)); width: 17.5rem;
+  display: flex; flex-direction: column; align-items: stretch; background: var(--plate); border: 1px solid var(--line-2); border-radius: .25rem; }
+#mg-clock { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: .5625rem .8125rem .5rem; }
+#mg-clock .sol { display: flex; align-items: baseline; font: 600 1.75rem/1 var(--f-cond); letter-spacing: .03em; }
+#mg-clock .sol .k { font-size: .75rem; letter-spacing: .22em; color: var(--accent); margin-right: .4375rem; }
+#mg-clock .sol .of { font-size: .875rem; font-weight: 500; color: var(--ink-2); margin-left: .3125rem; letter-spacing: .04em; }
+#mg-clock .meta { display: flex; align-items: center; justify-content: flex-end; gap: .4375rem; font-size: .875rem; color: var(--ink); }
+#mg-clock .meta .ic { width: .9375rem; height: .9375rem; display: block; color: var(--ink-2); }
+#mg-clock .meta i { width: .1875rem; height: .1875rem; border-radius: 50%; background: var(--ink-3); }
+#mg-clock .temp.cold { color: var(--cold); }
+
+#mg-objectives { padding: .5625rem .8125rem .6875rem; border-top: 1px solid var(--line-2); }
+#mg-objectives:empty { display: none; }
+#mg-objectives .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .375rem;
+  font: 600 .6875rem/1 var(--f-cond); letter-spacing: .2em; text-transform: uppercase; color: var(--ink-2); }
+#mg-objectives .hd b { color: var(--accent); font-weight: 600; }
+.obj { display: grid; grid-template-columns: .75rem 1fr auto; column-gap: .5rem; align-items: start; padding: .1875rem 0;
+  font-size: .8125rem; line-height: 1.3; color: var(--ink-2); }
+.obj .mk { width: .4375rem; height: .4375rem; margin: .3125rem auto 0; border: 1px solid var(--ink-3); transform: rotate(45deg); }
+.obj .ds { font: 600 .75rem/1.4 var(--f-cond); letter-spacing: .06em; color: var(--ink-2); white-space: nowrap; }
+.obj.primary { color: var(--ink); font-weight: 500; font-size: .875rem; }
+.obj.primary .mk { background: var(--accent); border-color: var(--accent); }
+.obj.primary .ds { color: var(--accent); }
+.obj.quest .mk { border-color: var(--cold); border-radius: 50%; transform: none; }
+.obj.quest .ds { color: var(--cold); }
+.obj.urgent { color: var(--danger); font-weight: 600; }
+.obj.urgent .mk { background: var(--danger); border-color: var(--danger); animation: mg-pulse .8s steps(2, jump-none) infinite; }
+.obj.done { color: var(--ok); }
+.obj.done .tx { text-decoration: line-through; text-decoration-color: rgba(139, 224, 164, .6); }
+.obj.done .mk { background: var(--ok); border-color: var(--ok); }
+.obj.new { animation: mg-obj-in .5s var(--ease); }
+@keyframes mg-obj-in { from { opacity: 0; transform: translateX(.75rem); } }
+
+/* ---------------------------------------------------------------- log (bottom left) */
+#mg-log { position: absolute; left: calc(var(--m) + var(--sal)); bottom: calc(var(--m) + var(--sab)); width: min(27rem, calc(50vw - 13.5rem));
+  display: flex; flex-direction: column; gap: .375rem; }
+.mg-line { display: grid; grid-template-columns: 3.125rem 1fr; column-gap: .625rem; align-items: baseline; padding: .4375rem .75rem .5rem .6875rem;
+  background: var(--plate); border-left: 2px solid var(--accent); border-radius: 0 .1875rem .1875rem 0;
+  font-size: .875rem; line-height: 1.38; color: var(--ink); opacity: 1; transition: opacity 1.2s; animation: mg-rise-in .3s var(--ease); }
+.mg-line .who { font: 600 .6875rem/1 var(--f-cond); letter-spacing: .18em; color: var(--accent); }
+.mg-line.control { border-left-color: var(--cold); }
+.mg-line.control .who { color: var(--cold); }
+.mg-line.sys { border-left-color: var(--danger); }
+.mg-line.sys .who { color: var(--danger); }
+.mg-line.disc { border-left-color: var(--ok); }
+.mg-line.disc .who { color: var(--ok); }
+.mg-line.fade { opacity: 0; }
+.mg-line:not(:last-child) { background: rgba(14, 12, 11, .5); }
+#mg-log .mg-line:nth-last-child(n+4) { display: none; }
+
+/* ---------------------------------------------------------------- rover readout (bottom centre) */
+#mg-rover { position: absolute; left: 50%; bottom: calc(var(--m) + var(--sab)); transform: translateX(-50%); display: none;
+  align-items: center; gap: 1rem; padding: .5rem 1rem .5rem 1.125rem; background: var(--plate); border: 1px solid var(--line-2); border-radius: .25rem; }
+.is-rover #mg-rover { display: flex; }
+#mg-rover .spd { display: flex; align-items: baseline; gap: .375rem; min-width: 5.25rem; justify-content: flex-end; }
+#mg-rover .spd b { font: 600 2.375rem/1 var(--f-cond); letter-spacing: .01em; }
+#mg-rover .spd span { font: 500 .6875rem/1 var(--f-cond); letter-spacing: .16em; color: var(--ink-2); }
+#mg-rover .rv { display: grid; gap: .3125rem; padding-left: 1rem; border-left: 1px solid var(--line-2); }
+#mg-rover .row { grid-template-columns: 1rem 3.75rem 5.5rem 2.25rem; }
+
+/* ---------------------------------------------------------------- interaction prompt */
+#mg-prompt { position: absolute; left: 50%; bottom: 23%; transform: translateX(-50%); display: flex; align-items: center; gap: .75rem;
+  max-width: min(34rem, 90vw); padding: .375rem 1.25rem .375rem .375rem; background: var(--plate); border: 1px solid var(--line-2);
+  border-radius: 2rem; opacity: 0; visibility: hidden; transition: opacity .15s, visibility 0s .15s; }
+#mg-prompt.on { opacity: 1; visibility: visible; transition: opacity .15s; }
+#mg-prompt .pk { position: relative; width: 2.5rem; height: 2.5rem; flex: none; }
+#mg-prompt .ring .trk { stroke: rgba(245, 240, 232, .25); stroke-width: 2; }
+#mg-prompt .ring .arc { stroke: var(--accent); stroke-width: 3; stroke-dashoffset: 100; transition: none; }
+#mg-prompt .kc { position: absolute; inset: 0; display: grid; place-items: center; font: 600 1.0625rem/1 var(--f-cond); color: var(--ink); }
+#mg-prompt .kc .ic { display: none; width: 1.125rem; height: 1.125rem; }
+.mg-touch #mg-prompt .kc .k { display: none; }
+.mg-touch #mg-prompt .kc .ic:first-of-type { display: block; }
+#mg-prompt.no .kc .k, #mg-prompt.no .kc .ic:first-of-type { display: none; }
+#mg-prompt.no .kc .ic:last-of-type { display: block; color: var(--ink-3); }
+#mg-prompt.no .ring .trk { stroke: rgba(245, 240, 232, .14); }
+#mg-prompt .pt { min-width: 0; }
+#mg-prompt .pl { display: flex; align-items: baseline; gap: .5rem; font-weight: 500; font-size: 1rem; line-height: 1.25; }
+#mg-prompt .ph { display: none; font: 600 .6875rem/1 var(--f-cond); letter-spacing: .18em; color: var(--accent); }
+#mg-prompt.hold .ph { display: inline; }
+#mg-prompt.no .lb { color: var(--ink-2); font-weight: 400; }
+#mg-prompt .sub { font-size: .8125rem; line-height: 1.3; color: var(--ink-2); margin-top: .0625rem; }
+#mg-prompt.holding .trk { stroke: rgba(255, 180, 84, .3); }
+/* something you can always do here (dig), not something in front of you: keep it quiet */
+#mg-prompt.minor { bottom: 14%; padding: .1875rem .875rem .1875rem .1875rem; gap: .5rem; background: rgba(14, 12, 11, .56); border-color: transparent; }
+#mg-prompt.minor .pk { width: 1.875rem; height: 1.875rem; }
+#mg-prompt.minor .kc { font-size: .875rem; }
+#mg-prompt.minor .pl { font-size: .8125rem; font-weight: 400; color: var(--ink-2); }
+#mg-prompt.minor .ph { font-size: .625rem; }
+#mg-prompt.minor.holding { background: var(--plate); }
+
+/* ---------------------------------------------------------------- key hints (bottom right), crosshair */
+#mg-keys { position: absolute; right: calc(var(--m) + var(--sar)); bottom: calc(var(--m) + var(--sab)); display: flex; flex-direction: column; align-items: flex-end; gap: .3125rem;
+  font: 500 .75rem/1 var(--f-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+#mg-keys span { display: inline-flex; align-items: center; gap: .25rem; padding: .1875rem .25rem .1875rem .5rem; border-radius: .1875rem; background: rgba(14, 12, 11, .56); }
+#mg-keys .mg-kbd { background: rgba(245, 240, 232, .1); font-size: .6875rem; letter-spacing: .04em; min-width: 1.75em; }
+#mg-keys .mg-kbd:first-of-type { margin-left: .375rem; }
+.mg-touch #mg-keys { display: none; }
+.mg-touch.is-cold #mg-keys { display: flex; flex-direction: row; gap: .375rem; right: auto; left: 50%; transform: translateX(-50%); bottom: calc(var(--sab) + .625rem); }
+.mg-touch.is-cold #mg-keys span { padding: .3125rem .625rem; border-radius: 1rem; }
+#mg-crosshair { position: absolute; left: 50%; top: 50%; width: .25rem; height: .25rem; margin: -.125rem 0 0 -.125rem; border-radius: 50%;
+  background: var(--ink); box-shadow: 0 0 0 1px rgba(0, 0, 0, .5); opacity: 0; }
+.is-fp #mg-crosshair { opacity: .8; }
+
+/* ---------------------------------------------------------------- toasts */
+#mg-toast { z-index: 3; position: absolute; left: 50%; top: calc(var(--m) + var(--sat) + 9.875rem + var(--al2, 0) * 2.25rem); transform: translateX(-50%); z-index: 40; pointer-events: none;
+  display: none; }
+.is-playing #mg-toast { display: block; }
+.is-modal #mg-toast { display: none; }
+.toast { display: flex; align-items: flex-start; gap: .875rem; min-width: 19rem; max-width: min(27rem, calc(100vw - 40rem)); padding: .75rem 1.25rem .8125rem .9375rem;
+  background: rgba(16, 14, 12, .9); border: 1px solid var(--line); border-top: 2px solid var(--cold); border-radius: .1875rem;
+  box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .35); animation: mg-toast-in .45s var(--ease); }
+.toast.out { opacity: 0; transform: translateY(-.5rem); transition: opacity .35s, transform .35s; }
+.toast .ti { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; flex: none; border: 1px solid currentColor; border-radius: 50%; color: var(--cold); }
+.toast .ti .ic { width: 1.25rem; height: 1.25rem; }
+.toast .t1 { font: 600 .6875rem/1 var(--f-cond); letter-spacing: .2em; text-transform: uppercase; color: var(--cold); }
+.toast .t2 { font: 600 1.25rem/1.15 var(--f-cond); letter-spacing: .06em; text-transform: uppercase; margin-top: .25rem; }
+.toast .t3 { font-size: .8125rem; line-height: 1.4; color: var(--ink-2); margin-top: .25rem; }
+.toast.ach { border-top-color: var(--accent); }
+.toast.ach .ti, .toast.ach .t1 { color: var(--accent); }
+.toast.sys { border-top-color: var(--ink-3); }
+.toast.sys .ti, .toast.sys .t1 { color: var(--ink-2); }
+@keyframes mg-toast-in { from { opacity: 0; transform: translateY(-.75rem); } }
+
+/* ================================================================ phones in landscape */
+.mg-compact { --m: .5rem; }
+.mg-compact .hud-scrim { height: 5rem; }
+.mg-compact #mg-vitals { gap: .5rem; padding: .3125rem .5rem .3125rem .375rem; }
+.mg-compact .suit .dial { width: 3rem; height: 3rem; }
+.mg-compact .suit .num { font-size: 1.1875rem; margin-top: 0; }
+.mg-compact .ring .ticks { display: none; }
+.mg-compact .suit .lb { font-size: .625rem; letter-spacing: .06em; margin-top: .0625rem; }
+.mg-compact .suit .st { font-size: .8125rem; letter-spacing: .04em; margin-top: .125rem; white-space: nowrap; color: var(--ink); }
+.mg-compact .ring .trk { stroke-width: 4; }
+.mg-compact .ring .arc { stroke-width: 4.5; }
+.mg-compact .res { gap: .125rem; padding-left: .5rem; }
+
+.mg-compact #mg-compass { --cw: min(14rem, calc(100vw - var(--sal) - var(--sar) - 25.5rem)); width: var(--cw); margin-left: calc(var(--cw) / -2);
+  top: calc(var(--sat) + .125rem); height: 3.25rem; }
+.mg-compact #mg-compass .strip { height: 2.375rem; }
+.mg-compact #mg-compass .cards span { font-size: .8125rem; bottom: .8125rem; }
+.mg-compact #mg-compass .cards span.minor { display: none; }
+.mg-compact #mg-compass .marks .mk { width: 1.25rem; height: 1.25rem; margin-left: -.625rem; }
+.mg-compact #mg-compass .mk .ic { width: 1rem; height: 1rem; }
+.mg-compact #mg-compass .caret { top: 2.375rem; }
+.mg-compact #mg-compass .dists { top: 2.8125rem; }
+/* (the region's name and a banner have the same place: while there is a banner, it is the banner's) */
+.mg-compact #mg-region { top: calc(var(--sat) + 4.625rem); font-size: .625rem; letter-spacing: .26em; text-indent: .26em; padding: .1875rem .5rem; }
+.mg-compact.has-alert #mg-region { display: none; }
+.mg-compact #mg-alerts { top: calc(var(--sat) + 4.625rem); gap: .5rem; }
+.mg-compact .alert { font-size: .75rem; padding: .25rem .625rem .25rem .5rem; }
+/* (the instruction stays on a phone: "critical" alone does not say what to do) */
+.mg-compact .alert small { font-size: .6875rem; }
+/* while his life is in the balance the log keeps quiet: the banner has the floor */
+.mg-compact.is-critical #mg-log { display: none; }
+/* phones have no free band across the top: a toast takes the log's place, under the gauges, and the log waits */
+.mg-compact #mg-toast { left: calc(var(--sal) + var(--m)); transform: none; top: calc(var(--vit-b, calc(var(--sat) + var(--m) + var(--vit))) + .5rem); }
+/* (a card that would reach the stick is set closer, and then gives up its second line of note: ui/dom.js measures it) */
+.mg-compact .toast.tight { padding: .1875rem .5rem .25rem; }
+.mg-compact .toast.tight .t2 { font-size: .9375rem; margin-top: .0625rem; }
+.mg-compact .toast.tight .t3 { margin-top: .0625rem; line-height: 1.25; }
+.mg-compact .toast.tight.one .t3 { -webkit-line-clamp: 1; }
+.mg-compact.has-toast #mg-log { visibility: hidden; }
+.mg-compact .toast { min-width: 0; max-width: none; width: min(15rem, calc(50vw - var(--sal) - 6.5rem)); padding: .4375rem .625rem .5rem; }
+.mg-compact .toast .ti { display: none; }
+.mg-compact .toast .t2 { font-size: 1rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mg-compact .toast .t3 { font-size: .6875rem; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.mg-compact #mg-tr { width: 13.5rem; gap: .375rem; background: none; border: 0; align-items: flex-end; }
+.mg-compact.mg-touch #mg-tr { top: calc(var(--m) + var(--sat) + 3rem); }
+.mg-compact #mg-clock { display: flex; align-items: baseline; justify-content: flex-end; gap: .5rem; }
+.mg-compact #mg-objectives { width: 100%; background: var(--plate); border: 1px solid var(--line-2); border-radius: .25rem; }
+.mg-compact #mg-clock .sol { font-size: 1.25rem; }
+.mg-compact #mg-clock .sol .k { font-size: .6875rem; margin-right: .3125rem; }
+.mg-compact #mg-clock .sol .of { font-size: .8125rem; color: var(--ink); }
+.mg-compact #mg-clock .meta { margin-top: 0; font-size: .8125rem; gap: .3125rem; }
+.mg-compact #mg-clock .meta .ic { color: var(--ink); }
+.mg-compact #mg-clock { padding: .125rem .5rem .1875rem; background: rgba(14, 12, 11, .5); border-radius: .25rem; text-shadow: none; }
+.mg-compact #mg-clock .meta .ic { width: .75rem; height: .75rem; }
+.mg-compact #mg-objectives { padding: .3125rem .5rem .375rem; }
+.mg-compact #mg-objectives .hd { display: none; }
+.mg-compact .obj { font-size: .75rem; padding: .0625rem 0; column-gap: .375rem; }
+.mg-compact .obj.primary { font-size: .8125rem; }
+.mg-compact .obj .ds { font-size: .6875rem; }
+.mg-compact .obj .mk { margin-top: .25rem; width: .375rem; height: .375rem; }
+/* (how many lines a phone shows is decided by the room there is: ui/hud.js marks the ones that do not fit, drops the
+   reason if the first line and its reason are too tall together, and as a last resort holds the first line to two) */
+.obj.cut { display: none !important; }
+#mg-objectives.no-why .why { display: none !important; }
+#mg-objectives.clamp .obj .tx { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* ... and whatever it holds, the block ends above the round buttons under it (VIEW is the highest of them) */
+/* (a net under the list's own fitting, which stops 8 px short of the buttons: the net is at the buttons, so that it
+   never trims what the fitting has passed. With the same 8 px taken off here it cut the block's own foot at 667.) */
+.mg-compact.mg-touch #mg-tr { max-height: calc(100vh - var(--sat) - var(--sab) - var(--m) - 3rem - 7.375rem - max(2.75rem, 44px)); overflow: hidden; }
+
+.mg-compact #mg-log { bottom: auto; top: calc(var(--vit-b, calc(var(--sat) + var(--m) + var(--vit))) + .5rem); width: min(15rem, calc(50vw - var(--sal) - 6.5rem)); gap: .25rem; }
+.mg-compact .mg-line { grid-template-columns: 2.25rem 1fr; column-gap: .375rem; padding: .25rem .5rem .3125rem .4375rem; font-size: .6875rem; line-height: 1.32; }
+.mg-compact .mg-line .who { font-size: .5625rem; letter-spacing: .12em; }
+
+.mg-compact #mg-rover { bottom: calc(var(--sab) + .5rem); gap: .625rem; padding: .3125rem .625rem .3125rem .75rem; }
+.mg-compact #mg-rover .spd { min-width: 3.5rem; }
+.mg-compact #mg-rover .spd b { font-size: 1.625rem; }
+.mg-compact #mg-rover .spd span { font-size: .6875rem; }
+.mg-compact #mg-rover .rv { padding-left: .625rem; gap: .1875rem; }
+
+/* (one place for it on a phone, whatever kind of prompt it is: low in the middle, between the stick and the buttons) */
+.mg-compact #mg-prompt, .mg-compact #mg-prompt.minor { bottom: calc(var(--sab) + .625rem); max-width: 17rem; gap: .5rem; padding: .25rem .875rem .25rem .25rem; }
+.mg-compact.mg-touch #mg-prompt { padding-left: .875rem; }
+.mg-compact.mg-touch #mg-prompt .pk { display: none; }
+.mg-compact.mg-touch #mg-prompt.no { padding-left: .25rem; }
+.mg-compact.mg-touch #mg-prompt.no .pk { display: block; }
+.mg-compact #mg-prompt .pk { width: 2rem; height: 2rem; }
+.mg-compact #mg-prompt .pl { font-size: .8125rem; }
+.mg-compact #mg-prompt .sub { font-size: .6875rem; }
+.mg-compact #mg-prompt.minor { bottom: calc(var(--sab) + 1rem); }
+
+/* driving, the rover's panel has the middle of the bottom edge: the log ends short of it at every interface size
+   (at its full width it reached 16 px into the panel at 135% on a 1080p screen) */
+.is-rover:not(.mg-compact) #mg-log { width: min(27rem, calc(50vw - 15rem - var(--sal))); }
+/* tablets: the stick lives where the log would be */
+.mg-touch:not(.mg-compact) #mg-log { bottom: calc(var(--sab) + 12.5rem); }
+
+/* ================================================================ photo mode */
+#mg-photo, #mg-photo-flash, #mg-photo-bars { display: none; }
+.is-photo #mg-hud, .is-photo #mg-toast, .is-photo #mg-prompt { visibility: hidden !important; opacity: 0; }
+.is-photo #mg-touch { display: none !important; }
+.is-photo #mg-photo { display: block; position: absolute; z-index: 60; left: calc(var(--sal) + var(--m)); right: calc(var(--sar) + var(--m)); bottom: calc(var(--sab) + var(--m));
+  padding: .625rem .875rem .75rem; background: rgba(19, 17, 15, .86); border: 1px solid var(--line-2); border-top: 2px solid var(--accent); backdrop-filter: blur(6px); }
+.ph-top { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .5rem; }
+.ph-title { display: inline-flex; align-items: center; gap: .5rem; font: 600 .875rem/1 var(--f-cond); letter-spacing: .18em; text-transform: uppercase; }
+.ph-title .ic { width: 1rem; height: 1rem; color: var(--accent); }
+.ph-hint { font-size: .75rem; color: var(--ink-3); text-align: right; }
+.ph-row { display: flex; gap: 1.25rem; align-items: flex-end; }
+.ph-sliders { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .375rem .875rem; }
+.ph-s { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .125rem .5rem; }
+.ph-s span { font: 500 .6875rem/1 var(--f-cond); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.ph-s output { font: 600 .75rem/1 var(--f-cond); letter-spacing: .04em; color: var(--ink); text-align: right; }
+.ph-s input { grid-column: 1 / -1; width: 100%; }
+.ph-side { flex: none; display: grid; gap: .5rem; justify-items: end; }
+.ph-looks button { min-width: 0; padding: 0 .625rem; }
+.ph-btns { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+.ph-btns .mg-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.ph-btns .mg-btn[aria-pressed] .ic { width: .875rem; height: .875rem; visibility: hidden; }
+.ph-btns .mg-btn[aria-pressed="true"] .ic { visibility: visible; }
+/* minimised: only the shutter, the way back and the way out, so the picture can be seen */
+.ph-min #mg-photo { left: auto; padding: .375rem .5rem; }
+.ph-min .ph-top, .ph-min .ph-sliders, .ph-min .ph-looks, .ph-min .ph-more { display: none; }
+.ph-min .ph-side { gap: 0; }
+.is-photo #mg-photo-flash { display: block; position: absolute; inset: 0; z-index: 59; background: #fff; opacity: 0; pointer-events: none; }
+#mg-photo-flash.go { animation: mg-photo-flash .45s ease-out; }
+@keyframes mg-photo-flash { 0% { opacity: .75; } 100% { opacity: 0; } }
+.is-photo.ph-bars #mg-photo-bars { display: block; position: absolute; inset: 0; z-index: 58; pointer-events: none;
+  box-shadow: inset 0 calc((100vh - 100vw / 2.39) / 2) 0 0 #000, inset 0 calc((100vw / 2.39 - 100vh) / 2) 0 0 #000; }
+.mg-compact #mg-photo { padding: .375rem .5rem .4375rem; }
+.mg-compact .ph-top { margin-bottom: .25rem; }
+.mg-compact .ph-hint { font-size: .625rem; }
+.mg-compact .ph-row { gap: .625rem; }
+.mg-compact .ph-sliders { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .25rem .5rem; }
+.mg-compact .ph-btns .mg-btn { min-height: 2rem; padding: 0 .5rem; font-size: .6875rem; }
+.mg-compact .ph-looks button { padding: 0 .375rem; font-size: .625rem; min-height: 1.75rem; }
+
+/* an emergency at the head of the mission list is the largest thing in it */
+.obj.urgent.first { font-size: .9375rem; }
+.mg-compact .obj.urgent.first { font-size: .8125rem; }
+
+/* (on the narrowest phones the compass gives up the width four thumb-sized buttons need) */
+@media (max-width: 760px) { .mg-compact #mg-compass { --cw: min(14rem, calc(100vw - var(--sal) - var(--sar) - 28.75rem)); } }
+/* the reason for the current objective, under it (on a phone too: it used to arrive there as a card that repeated the line above it) */
+.obj .why { grid-column: 2 / -1; font-size: .75rem; line-height: 1.3; color: var(--ink-2); font-weight: 400; }
+.mg-compact .obj .why { font-size: var(--t11); line-height: 1.28; margin-top: .0625rem; }
+
+/* ================================================================ waypoint: where the current objective is
+   (it comes before the panels in the HUD, so a diamond over a place in the world is drawn under them) */
+#mg-way { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: .1875rem; margin: -1.125rem 0 0 -1.5rem; width: 3rem;
+  pointer-events: none; will-change: transform; }
+#mg-way .wp { width: .75rem; height: .75rem; background: var(--accent); transform: rotate(45deg); box-shadow: 0 0 0 2px rgba(19, 17, 15, .7), 0 0 .625rem rgba(255, 180, 84, .6);
+  animation: mg-way-bob 1.6s ease-in-out infinite; }
+#mg-way b { font: 600 .6875rem/1 var(--f-cond); letter-spacing: .06em; color: var(--ink); padding: .125rem .3125rem; background: rgba(19, 17, 15, .72); border-radius: .125rem; white-space: nowrap; }
+#mg-way.urgent .wp { background: var(--danger); box-shadow: 0 0 0 2px rgba(19, 17, 15, .7), 0 0 .625rem rgba(255, 106, 92, .7); }
+/* out of view: an arrowhead at the edge, pointing the way */
+/* Off the place it is a dart: taller than wide, notched at the tail, so which end is the point cannot be mistaken.
+   (It was a triangle 14 px by 13, as near equilateral as makes no difference: a reviewer measuring its sides could not
+   say which corner was the tip.) */
+#mg-way.off { filter: drop-shadow(0 0 2px rgba(12, 10, 8, .9)); }
+#mg-way.off .wp { width: 1rem; height: 1.375rem; background: var(--accent); box-shadow: none; animation: none; border: 0; clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%); }
+#mg-way.off.urgent .wp { background: var(--danger); box-shadow: none; }
+@keyframes mg-way-bob { 50% { margin-top: -.25rem; margin-bottom: .25rem; } }
+.mg-reduced #mg-way .wp { animation: none; }
+.is-modal #mg-way, .is-photo #mg-way, .is-cutscene #mg-way { display: none !important; }
+
+/* on a phone the log sits between the bars and the joystick: room for the newest message only
+   (the journal keeps them all), and six lines of it at the most (ui/dom.js gives it whole sentences that fit) */
+.mg-compact #mg-log .mg-line:nth-last-child(n+2) { display: none; }
+.mg-compact #mg-log .mg-line { line-height: 1.3; }
+.mg-compact #mg-log .mg-line .tx { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* (the first minute is one number and one task: what the log has to say waits for the journal) */
+.mg-compact.is-cold #mg-log { display: none; }
+/* driving, the rover's panel has the low middle of a phone: the prompt stands on it */
+.mg-compact.is-rover #mg-prompt, .mg-compact.is-rover #mg-prompt.minor { bottom: calc(var(--sab) + 4.5rem); }
+
+/* ================================================================ the prompt's three states
+   Something to do: HOLD and the thing. Something in the way: a padlock and the reason. Nothing to do here now
+   (a bed still growing, a clean panel): the reading alone, quietly, with no ring and no padlock. */
+#mg-prompt.info { padding: .375rem 1.125rem; background: rgba(14, 12, 11, .56); border-color: transparent; }
+#mg-prompt.info .pk { display: none !important; }
+#mg-prompt.info .lb { color: var(--ink-2); font-weight: 400; }
+.mg-compact #mg-prompt.info, .mg-compact.mg-touch #mg-prompt.info { padding: .3125rem .875rem; }
+/* the first minute's two hints give way to the prompt at the airlock (they stood on it) */
+.mg-touch.is-cold #mg-prompt.on ~ #mg-keys { display: none; }
+
+/* ================================================================ the six bars arrive as he first steps into the Hab (ui/hud.js) */
+.no-bars .res { display: none; }
+.no-bars #mg-vitals { padding-right: .75rem; }
+
+/* ================================================================ phones: nothing under 11 px
+   (the interface's rem falls below 16 px on a small phone, so these are held in real pixels) */
+/* (Sixth review: the floor is 12 px. Two more sizes are named for what they are for: --tcap, 14 px, for a label in
+   capitals, which is as tall as its capitals and no taller, so that 13 px of it measured as "about 10 px" beside the
+   text it labelled; and 13 px for the condensed face in lower case, which is narrow and small on its body. The name
+   --t11 is kept for the rules that use it: what they set is now 12 px.) */
+.mg-compact { --t11: max(.75rem, 12px); --t12: max(.75rem, 12px); --t13: max(.8125rem, 13px); --t14: max(.875rem, 14px); --tcap: max(.875rem, 14px); }
+#mg-root:not(.mg-compact) { --tcap: max(.8125rem, 13px); }
+/* (A review held to a higher standard: the floor is 13 px on every phone wider than the smallest, and the step above
+   it 14. Secondary text, the body of a card, the second line of a pill, a hint, a warning under a button, was 12 px
+   in grey and "read as 10 or 11". It is also a shade lighter, on every phone: grey text is read against a picture
+   of Mars through a sheet that is not quite opaque. The smallest phone (667 wide) keeps the 12 px floor: its
+   sheets were fitted to it line by line.) */
+@media (min-width: 761px) { .mg-compact { --t11: max(.8125rem, 13px); --t12: max(.8125rem, 13px); --t13: max(.875rem, 14px); --t14: max(.9375rem, 15px); } }
+.mg-compact { --ink-2: rgba(245, 240, 232, .85); --ink-3: rgba(245, 240, 232, .68); }
+.mg-compact .suit .dial { width: 3.375rem; height: 3.375rem; }
+.mg-compact .suit .lb { font-size: var(--t11); letter-spacing: .02em; margin-top: 0; }
+.mg-compact .suit .st { font-size: var(--t13); }
+.mg-compact #mg-compass .dists span { font-size: var(--t11); letter-spacing: .04em; padding: .125rem .3125rem; }
+.mg-compact #mg-compass .dists span b { font-size: var(--t13); }
+.mg-compact #mg-region { font-size: var(--t11); letter-spacing: .2em; text-indent: .2em; }
+.mg-compact #mg-clock .sol .k { font-size: var(--t11); }
+.mg-compact .obj { font-size: var(--t12); }
+.mg-compact .obj.primary, .mg-compact .obj.urgent.first { font-size: var(--t13); }
+.mg-compact .obj .ds { font-size: var(--t13); line-height: 1.25; color: var(--ink); }
+.mg-compact .mg-line { grid-template-columns: 2.5rem 1fr; font-size: var(--t12); }
+.mg-compact .mg-line .who { font-size: var(--t11); letter-spacing: .06em; }
+.mg-compact .toast .t1 { font-size: var(--t11); }
+.mg-compact .toast .t3 { font-size: var(--t12); line-height: 1.3; }
+.mg-compact #mg-rover .spd span { font-size: var(--t11); }
+.mg-compact #mg-prompt .ph, .mg-compact #mg-prompt.minor .ph { font-size: var(--t11); }
+.mg-compact #mg-prompt .pl, .mg-compact #mg-prompt.minor .pl { font-size: var(--t13); }
+.mg-compact #mg-prompt .sub { font-size: var(--t11); }
+.mg-compact #mg-way b { font-size: var(--t13); padding: .125rem .375rem; }
+.mg-compact #mg-way { width: 3.5rem; margin-left: -1.75rem; }
+.mg-compact .ph-hint, .mg-compact .ph-s span, .mg-compact .ph-btns .mg-btn, .mg-compact .ph-looks button { font-size: var(--t11); }
+
+/* ================================================================ desktops: a banner keeps between the bars and the mission panel
+   (the longest of them, at the largest interface size, reached a few pixels into the bars: past the room there is,
+   the instruction goes onto a line of its own, as it does on a phone) */
+#mg-root:not(.mg-compact) .alert { flex-wrap: wrap; justify-content: center; row-gap: .25rem; max-width: calc(100vw - 48.5rem); }
+#mg-root:not(.mg-compact) #mg-toast { top: calc(var(--m) + var(--sat) + 9.875rem + var(--al2, 0) * 3.25rem); }
+/* ... and the log keeps under the bars: the newest entry shows whole, the two before it two lines each (three long
+   ones together stood as tall as the screen at the largest interface size) */
+#mg-root:not(.mg-compact) #mg-log { justify-content: flex-end; overflow: hidden; max-height: calc(100vh - var(--sat) - var(--sab) - var(--m) - 13rem); }
+#mg-root:not(.mg-compact) #mg-log .mg-line:not(:last-child) .tx { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* (on a tablet the log stands above the stick, so it has that much less room under the bars) */
+#mg-root.mg-touch:not(.mg-compact) #mg-log { max-height: calc(100vh - var(--sat) - var(--sab) - var(--m) - 23.5rem); }
+
+/* ================================================================ phones: a banner is two lines, what is wrong over what to do
+   (on one line the longer ones reached to within 2 px of the bars, and the narrowest phones dropped the second half) */
+.mg-compact .alert { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: .375rem; row-gap: .1875rem;
+  padding: .3125rem .75rem .375rem; max-width: 13.5rem; white-space: normal; font-size: var(--t12); letter-spacing: .1em; }
+.mg-compact .alert small { grid-column: 1 / -1; margin-left: 0; text-align: center; font-size: var(--t11); line-height: 1.15; letter-spacing: .02em; }
+@media (max-width: 760px) {
+  .mg-compact .alert { max-width: 8.25rem; padding-left: .375rem; padding-right: .375rem; letter-spacing: .04em; column-gap: .25rem; }
+  /* the log and the toast have the width between the screen's edge and the banners, and the log the smaller of the two sizes:
+     six lines of it stand between the bars and the stick */
+  .mg-compact #mg-log, .mg-compact .toast { width: min(15rem, calc(50vw - var(--sal) - 5.25rem)); }
+  .mg-compact .mg-line { font-size: var(--t11); line-height: 1.3; }
+}
+
+/* ================================================================ phones: the six gauges, and the rover's two
+   One design at both phone sizes. A gauge is two lines: its name and its number, and under them a bar the whole
+   width of the row, solid where the tank is full. Nothing is written on the bar, so the level never runs through a
+   word or a figure, and the bar is as long as the row instead of what the name and number leave over.
+   (At 844 wide a gauge was a line 34 px long and 3 px tall beside its name; at 667 it was a pale band behind the
+   name whose fill ended inside the word. A band with the words on it was tried here first: wherever the level
+   stood behind the number, its edge read as part of the number.) */
+.mg-compact { --gh: 6px; --rg: 2px; --grow: calc(.8 * var(--t14) + 1px + var(--gh)); --vit: calc(6 * var(--grow) + 5 * var(--rg) + .625rem + 2px); }
+.mg-compact #mg-vitals { gap: .4375rem; padding: .3125rem .4375rem .3125rem .375rem; background: rgba(14, 12, 11, .78); align-items: center; }
+.mg-compact .res { gap: var(--rg); padding-left: .4375rem; }
+.mg-compact .res .row, .mg-compact #mg-rover .row { grid-template-columns: .875rem minmax(0, 1fr) auto 9px; grid-template-rows: auto var(--gh); column-gap: .25rem; row-gap: 1px;
+  align-items: end; width: 9.5rem; height: auto; border-radius: 2px; }
+.mg-compact #mg-rover .row { grid-template-columns: .875rem minmax(0, 1fr) auto; width: 9rem; }
+.mg-compact .row .ic { grid-column: 1; grid-row: 1 / span 2; align-self: center; width: .8125rem; height: .8125rem; }
+/* (a line box four fifths of the type's size stands on the baseline: capitals and figures have nothing below it) */
+.mg-compact .row .lb { grid-column: 2; grid-row: 1; font-size: var(--t12); line-height: .8; letter-spacing: .04em; color: var(--ink); }
+.mg-compact .row .val { grid-column: 3; grid-row: 1; font-size: var(--t14); line-height: .8; color: var(--ink); }
+.mg-compact .row .val small { font-size: var(--t11); color: var(--ink-2); }
+.mg-compact .row .tk { grid-column: 2 / 4; grid-row: 2; height: var(--gh); border-radius: 1px; background: rgba(245, 240, 232, .2); overflow: hidden; }
+/* (sized by its width here, not squeezed: the colour-blind hatching keeps its pitch at every level) */
+.mg-compact .row .fl { transform: none !important; width: calc(var(--f, 1) * 100%); background: var(--ink); transition: width .35s linear, background .3s; }
+/* rising or falling: an arrow big enough to see, beside the number */
+.mg-compact .row .tr { grid-column: 4; grid-row: 1; align-self: end; margin-bottom: 1px; border-left: 4.5px solid transparent; border-right: 4.5px solid transparent; opacity: 1; }
+.mg-compact .row .tr.up { border-bottom: 8px solid var(--ok); }
+.mg-compact .row .tr.dn { border-top: 8px solid var(--ink-2); }
+/* low, the whole row changes: name, number, icon and bar take the warning colour on a plate of it; lower still the
+   danger colour, and the row is ringed */
+.mg-compact .row.warn { background: rgba(255, 180, 84, .14); box-shadow: 0 0 0 2px rgba(255, 180, 84, .14); }
+.mg-compact .row.crit { background: rgba(255, 106, 92, .2); box-shadow: 0 0 0 2px rgba(255, 106, 92, .2), 0 0 0 3px var(--danger); }
+.mg-compact .row.warn .lb, .mg-compact .row.warn .val, .mg-compact .row.warn .val small { color: var(--accent); }
+.mg-compact .row.crit .lb, .mg-compact .row.crit .val, .mg-compact .row.crit .val small { color: #ff8f84; }
+.mg-compact .row.warn .tk { background: rgba(255, 180, 84, .26); }
+.mg-compact .row.crit .tk { background: rgba(255, 106, 92, .3); }
+.mg-compact .row.crit .tr.dn { border-top-color: var(--danger); }
+/* colour-blind-safe: a low gauge's track is striped, a critical one's cross-hatched, and the critical row keeps its
+   ring: the two differ by pattern and by shape as well as by tint (on a 3 px line the hatching was a sliver nobody
+   could see). The pattern is FAINT and the fill is solid: at full strength the hatched track was brighter than the
+   plain one, and a bar with 9 L in it read as a bar nearly full, to the very players the setting is for. */
+.mg-cb.mg-compact .row.warn .fl, .mg-cb.mg-compact .row.crit .fl { background-image: none; }
+.mg-cb.mg-compact .row.warn .tk { background-color: rgba(245, 240, 232, .10); background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(255, 216, 74, .30) 3px 5px); }
+.mg-cb.mg-compact .row.crit .tk { background-color: rgba(245, 240, 232, .10);
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(255, 122, 51, .32) 3px 5px), repeating-linear-gradient(45deg, transparent 0 3px, rgba(255, 122, 51, .32) 3px 5px); }
+.mg-cb.mg-compact .row.warn .fl, .mg-cb.mg-compact .row.crit .fl { box-shadow: 2px 0 0 #0c0a09; }
+.mg-cb.mg-compact .row.warn .fl { background-color: var(--accent); }
+.mg-cb.mg-compact .row.crit .fl { background-color: var(--danger); }
+/* (and the figures of a critical row and of the suit's dial take the safe palette's vermilion, not the usual red) */
+.mg-cb .suit.crit .num, .mg-cb .suit.crit .cap, .mg-cb.mg-compact .row.crit .lb, .mg-cb.mg-compact .row.crit .val, .mg-cb.mg-compact .row.crit .val small { color: #ffa46b; }
+@media (max-width: 760px) {
+  .mg-compact .res .row { width: 7.75rem; }
+  .mg-compact #mg-rover .row { width: 8rem; }
+}
+/* On a touch screen the whole panel is one control, which opens the guide to itself. It is framed as the other touch
+   buttons are, and a chip under the dial names what a press opens. (The chip was a "?" in an 18 px ring: it read as a
+   button too small to press, and nothing else showed the panel could be pressed.) */
+.suit .help { display: none; }
+.mg-touch.mg-compact .suit .help { display: inline-flex; align-items: center; gap: .25rem; height: max(1.25rem, 20px); padding: 0 .4375rem; border: 1px solid var(--ink-3); border-radius: .75rem;
+  font: 600 var(--t13)/1 var(--f-cond); letter-spacing: .04em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+.suit .help i { font-style: normal; color: var(--accent); }
+.mg-touch.is-cold .suit .help, .mg-touch.no-bars .suit .help { display: none; }
+.mg-touch.mg-compact #mg-vitals { border-color: rgba(245, 240, 232, .4); border-radius: .375rem; }
+.mg-touch.mg-compact #mg-vitals::before, .mg-touch.mg-compact #mg-vitals::after { display: none; }
+.mg-touch.mg-compact #mg-vitals:active { background: rgba(60, 54, 48, .9); }
+/* (in the first minute it is one number and opens nothing: plain) */
+.mg-touch.mg-compact.is-cold #mg-vitals, .mg-touch.mg-compact.no-bars #mg-vitals { border-color: var(--line-2); border-radius: .25rem; }
+/* ... and the first time the bars appear, a line under the panel points at it */
+.mg-compact .toast.point { position: relative; border-top-color: var(--accent); overflow: visible; }
+.mg-compact .toast.point::before { content: ""; position: absolute; left: 1.25rem; top: -.5rem; border-left: .4375rem solid transparent; border-right: .4375rem solid transparent; border-bottom: .4375rem solid var(--accent); }
+.mg-compact .toast.point .t1 { color: var(--accent); }
+.mg-compact .toast.point .t2 { font: 500 var(--t13)/1.3 var(--f-body); letter-spacing: 0; text-transform: none; margin-top: .1875rem; }
+/* a card with a title and nothing under it (night has fallen) is a short one */
+.mg-compact .toast .t2:last-child { font-size: .9375rem; }
+
+/* ================================================================ fifth review
+   The prompt comes and goes at once. (It faded over a sixth of a second: on a slow frame the old one was still up
+   beside the next task, and a refusal's reason had not yet arrived beside its barred button.) */
+#mg-prompt, #mg-prompt.on { transition: none; }
+/* something in the way is a barred ring, not a padlock: nothing is locked */
+#mg-prompt.no .kc .ic:last-of-type { color: var(--ink-2); }
+/* the lines of a prompt, a title or a card's heading are of a length: none ends in a line of one word */
+#mg-prompt .lb, #mg-prompt .sub, .obj .tx, .toast .t2 { text-wrap: balance; }
+.obj .why, .toast .t3 { text-wrap: pretty; }
+
+/* the suit's dial: a share of the tank. On a phone the dial holds the figure and its name stands under it */
+.suit .num small { font-size: max(.5em, 11px); font-weight: 500; color: var(--ink-2); margin-left: .05em; }
+.suit .cap { display: none; }
+.mg-compact .suit { gap: .25rem; }
+.mg-compact .suit .in .lb { display: none; }
+.mg-compact .suit .num { font-size: 1.375rem; }
+.mg-compact .suit .cap { display: block; font: 600 var(--t13)/1 var(--f-cond); letter-spacing: .04em; color: var(--ink-2); white-space: nowrap; }
+.mg-compact .suit .st { margin-top: 0; letter-spacing: .02em; }
+.suit.warn .cap { color: var(--accent); }
+.suit.crit .cap { color: #ff8f84; }
+
+/* the place a line's distance is measured to. Beside the title on a wide list; on a phone the first line of the list
+   has it on a line of its own, "HEAP · 46 m", so the title has the whole width and stands on one line */
+.obj .at { display: inline-flex; align-items: baseline; gap: .3125rem; white-space: nowrap; }
+.obj .pl { display: none; }
+@media (min-width: 761px) { .mg-compact #mg-tr { width: 15rem; } }
+.mg-compact #mg-objectives .obj.primary, .mg-compact #mg-objectives .obj.urgent.first { grid-template-columns: .75rem minmax(0, 1fr); }
+.mg-compact #mg-objectives .obj.primary .at, .mg-compact #mg-objectives .obj.urgent.first .at { grid-column: 2; }
+.mg-compact #mg-objectives .obj.primary .pl, .mg-compact #mg-objectives .obj.urgent.first .pl { display: inline; font: 600 var(--t13)/1.25 var(--f-cond); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.mg-compact #mg-objectives .obj.primary .pl:not(:empty)::after, .mg-compact #mg-objectives .obj.urgent.first .pl:not(:empty)::after { content: "\00a0\00b7"; color: var(--ink-3); }
+.mg-compact #mg-objectives .obj.urgent.first .pl { color: var(--danger); }
+
+/* phones: a card on the left is solid enough to read over anything, stands 8 px under the bars, and arrives by
+   sliding, not by fading. (Software rendering draws a frame a second: a card caught half-way through a fade was
+   grey type on the lockers behind it. A slide caught half-way is a whole card a few pixels high.) */
+.mg-compact .mg-line { background: rgba(16, 14, 12, .92); animation-name: mg-slide-in; }
+.mg-compact .toast { animation-name: mg-slide-in; }
+.mg-compact .alert { animation-name: mg-slide-in; }
+.mg-compact .obj.new { animation-name: mg-slide-side; }
+.mg-compact #mg-region.enter { animation-name: mg-region-in-c; }
+@keyframes mg-slide-in { from { transform: translateY(-.5rem); } }
+@keyframes mg-slide-side { from { transform: translateX(.75rem); } }
+@keyframes mg-region-in-c { 0% { letter-spacing: .5em; text-indent: .5em; background: var(--accent-wash); } 100% { letter-spacing: .2em; text-indent: .2em; } }
+.mg-compact #mg-toast, .mg-compact #mg-log { top: calc(var(--vit-b, calc(var(--sat) + var(--m) + var(--vit))) + max(.5rem, 8px)); }
+
+/* rising or falling: an arrow that can be seen at arm's length (it was 8 px by 7) */
+.mg-compact .res .row { grid-template-columns: .875rem minmax(0, 1fr) auto 11px; }
+.mg-compact .row .tr { border-left-width: 5.5px; border-right-width: 5.5px; }
+.mg-compact .row .tr.up { border-bottom-width: 10px; }
+.mg-compact .row .tr.dn { border-top-width: 10px; }
+.mg-compact .row .val small { margin-left: .18em; letter-spacing: .02em; }
+
+/* the prompt has the width between the stick and the buttons, and no more: at 844 that is room for most prompts on
+   one line; at 667 it stood 8 px into the JUMP button, so there it is narrower and centred on the gap it has */
+@media (min-width: 761px) { .mg-compact #mg-prompt, .mg-compact #mg-prompt.minor { max-width: min(24rem, calc(100vw - var(--sal) - var(--sar) - 22.5rem)); } }
+@media (max-width: 760px) { .mg-compact #mg-prompt, .mg-compact #mg-prompt.minor { max-width: 15.75rem; left: calc(50% - .8125rem); } }
+
+/* ================================================================ phones: capitals at 13 px
+   A label in capitals is as tall as its capitals: seven tenths of its size. At 11 px that is under 8 px of
+   letter, which the fifth review measured as "about 9 px" type, in the suit's dial, the statistics tiles, the title's
+   footer and a dozen other places. On a phone every label in capitals is now 13 px (9 px of letter); the caption
+   under an icon on a touch button, which is half of a label and has 46 px to stand in, is 12. tests/audit-lib.mjs
+   holds both. */
+.mg-compact .row .lb { font-size: var(--tcap); letter-spacing: .03em; }
+.mg-compact { --grow: calc(.8 * var(--t14) + 1px + var(--gh)); }
+.mg-compact #mg-compass .dists span { font-size: var(--tcap); letter-spacing: .02em; }
+.mg-compact #mg-region { font-size: var(--tcap); letter-spacing: .12em; text-indent: .12em; }
+@keyframes mg-region-in-c { 0% { letter-spacing: .4em; text-indent: .4em; background: var(--accent-wash); } 100% { letter-spacing: .12em; text-indent: .12em; } }
+.mg-compact #mg-clock .sol .k { font-size: var(--tcap); letter-spacing: .14em; }
+.mg-compact .alert { font-size: var(--tcap); letter-spacing: .08em; }
+.mg-compact .mg-line { grid-template-columns: 3rem 1fr; }
+.mg-compact .mg-line .who { font-size: var(--tcap); letter-spacing: .04em; }
+.mg-compact .toast .t1 { font-size: var(--tcap); letter-spacing: .14em; }
+.mg-compact #mg-rover .spd span { font-size: var(--tcap); letter-spacing: .08em; }
+.mg-compact #mg-prompt .ph, .mg-compact #mg-prompt.minor .ph { font-size: var(--tcap); letter-spacing: .12em; }
+.mg-compact #mg-keys { font-size: var(--tcap); letter-spacing: .1em; }
+.mg-compact .ph-s span, .mg-compact .ph-btns .mg-btn, .mg-compact .ph-looks button { font-size: var(--tcap); letter-spacing: .06em; }
+.mg-compact .ph-title { font-size: var(--tcap); }
+@media (max-width: 760px) {
+  /* (the narrowest phones: the name of the place stands between the bars and the mission list, in what room there is) */
+  .mg-compact #mg-region { letter-spacing: 0; text-indent: 0; padding-left: .25rem; padding-right: .25rem; }
+  @keyframes mg-region-in-c { 0% { background: var(--accent-wash); } 100% { background: rgba(14, 12, 11, .6); } }
+  /* (a banner there is 127 px wide at the most: its title has the width, and the colour says it is an alarm) */
+  .mg-compact .alert { grid-template-columns: auto; letter-spacing: 0; }
+  .mg-compact .alert .ic { display: none; }
+  .mg-compact .res .row { width: 7.375rem; }
+}
+
+/* ================================================================ sixth review
+   The prompt means "something is here". A reading, and on a touch screen an offer that is always there, are put
+   away after a few seconds (ui/dom.js); the pill is as wide as its longest line (its width is measured there). */
+#mg-prompt.rest { visibility: hidden; opacity: 0; }
+#mg-prompt .pt { flex: 0 1 auto; min-width: 0; }
+/* a refusal is two lines, as every prompt is: what is wanting, and under it what to do about it */
+#mg-prompt.no .lb { color: var(--ink); font-weight: 500; }
+#mg-prompt.no .sub { color: var(--ink-2); }
+
+/* The log's voices. The Hab reporting is in the plain colour; its alarms are red; a remark with no speaker is a note.
+   (Everything the Hab said was red, and so was a line about a dust devil.) */
+.mg-line.sys { border-left-color: var(--ink-3); }
+.mg-line.sys .who { color: var(--ink-2); }
+.mg-line.alarm { border-left-color: var(--danger); }
+.mg-line.alarm .who { color: var(--danger); }
+.mg-line.note { border-left-color: var(--ink-4); }
+.mg-line.note .who { color: var(--ink-3); }
+
+/* A bar, or a button, is lit while the card that introduces it is up (ui/dom.js lights it and puts it out). */
+.row.fresh .lb, .row.fresh .ic { color: var(--accent); }
+.mg-compact .row.fresh { background: var(--accent-wash); box-shadow: 0 0 0 2px var(--accent-wash), 0 0 0 3px var(--accent); }
+.mg-compact .row.fresh .lb { color: var(--accent); }
+/* with one bar or five, the panel keeps the bars at its head: each new one comes in under the last */
+.mg-compact #mg-vitals { align-items: flex-start; }
+.mg-compact .suit { align-self: center; }
+
+/* The guide's chip is a button to look at: the width of the dial's column and 28 px tall, in the frame the touch
+   buttons have. The whole panel is still what is pressed. (It was a pill 54 by 18.) */
+.mg-touch.mg-compact .suit .help { align-self: stretch; justify-content: center; height: max(1.75rem, 28px); padding: 0 .375rem; border: 1px solid rgba(245, 240, 232, .4); border-radius: .375rem;
+  background: rgba(245, 240, 232, .08); font-size: var(--t13); letter-spacing: .08em; }
+.mg-touch.mg-compact .suit .help i { font-size: var(--t14); }
+
+/* gauge units are words to be read: 13 px beside a 14 px figure, told apart by weight and colour */
+.mg-compact .row .val small { font-size: var(--t13); font-weight: 500; margin-left: .2em; letter-spacing: .01em; }
+.mg-compact .suit .num small { font-size: var(--t13); }
+
+/* The clock says what its second figure is: "SOL 1 · RESCUE SOL 25" (ui/hud.js leaves it out until he knows of it). */
+#mg-clock .sol, #mg-clock .meta { white-space: nowrap; flex: none; }
+#mg-clock .sol .of i { font-style: normal; color: var(--ink-3); margin-right: .25em; }
+/* (a phone's clock is a line of its own, with room for "SOL 1  RESCUE 25"; on a wide screen the clock shares its line
+   with the time and the temperature, and the rescue heads the mission list under it: "MISSION … RESCUE SOL 25") */
+#mg-root:not(.mg-compact) #mg-clock .sol .of { display: none; }
+#mg-objectives .hd b { letter-spacing: .14em; }
+@media (max-width: 760px) { .mg-compact #mg-clock { gap: .4375rem; } .mg-compact #mg-clock .meta .dn, .mg-compact #mg-clock .meta .sep { display: none; } }
+#mg-clock .sol .of:not(:empty) { margin-left: .625rem; text-transform: uppercase; letter-spacing: .08em; }
+.mg-compact #mg-clock .sol .of:not(:empty) { margin-left: .5rem; font-size: var(--t13); font-weight: 600; letter-spacing: .04em; color: var(--ink); }
+.mg-compact #mg-clock .sol .of i { color: var(--ink-2); font-weight: 500; }
+.mg-compact #mg-clock { gap: .625rem; }
+.mg-compact #mg-clock .meta { font-size: var(--t13); }
+
+/* The task card on a phone: solid enough that what is behind it never shows through its text; its reason at 12 px in
+   a colour that reads; and under its first line the way out, when the way leads through the airlock:
+   "AIRLOCK · 12 m  then HEAP 34 m". Closed (the reason read and put away), it carries a mark that it opens. */
+.mg-compact #mg-objectives { background: rgba(14, 12, 11, .9); }
+.mg-compact .obj .why { font-size: var(--t12); line-height: 1.3; color: rgba(245, 240, 232, .86); margin-top: .125rem; }
+.obj .nx { display: none; }
+.mg-compact #mg-objectives .obj.primary .at, .mg-compact #mg-objectives .obj.urgent.first .at { display: flex; flex-wrap: wrap; column-gap: .3125rem; }
+.mg-compact #mg-objectives .obj.primary .nx:not(:empty), .mg-compact #mg-objectives .obj.urgent.first .nx:not(:empty) { display: inline; margin-left: .3125rem; font: 500 var(--t12)/1.3 var(--f-body); color: var(--ink-2); white-space: nowrap; }
+.mg-compact #mg-objectives .obj .nx b { font: 600 var(--t13)/1.25 var(--f-cond); letter-spacing: .06em; text-transform: uppercase; color: var(--ink); }
+.mg-touch #mg-objectives { pointer-events: auto; cursor: pointer; }
+.mg-touch.mg-compact #mg-objectives { min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+/* (the mark stands at the end of the line that names the place: beside the title it took a rem of the title's own
+   line, and a title that stood on one line open ran to two closed) */
+.mg-compact #mg-objectives.shut .obj.primary .at::after, .mg-compact #mg-objectives.shut .obj.urgent.first .at::after { content: ""; margin: 0 .1875rem .1875rem auto; align-self: center; width: .375rem; height: .375rem;
+  border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); }
+
+/* the compass: the mission's own mark is named and no more (its distance is on the first line of the list) */
+#mg-compass .dists span b:empty { display: none; }
+
+/* a banner's second line is read in a hurry: 13 px, and the banner has the width between the bars and the list */
+.mg-compact .alert small { font-size: var(--t13); line-height: 1.15; }
+@media (max-width: 760px) { .mg-compact .alert { max-width: 9.375rem; } .mg-compact .mg-line { font-size: var(--t12); } }
+
+/* what is said on a card or in the log on a phone is 12 px at the least */
+.mg-compact .toast .t3, .mg-compact .mg-line { font-size: var(--t12); }
+
+/* photo mode: the way out is the first of its buttons, at the left, as on every sheet */
+.ph-btns [data-act="done"] { order: -1; }
+
+/* capitals at 14 px on a phone: the labels that are set outside the section that lists the rest */
+.mg-compact .suit .cap, .mg-compact .suit .st, .mg-touch.mg-compact .suit .help { font-size: var(--tcap); }
+.mg-compact #mg-objectives .obj.primary .pl, .mg-compact #mg-objectives .obj.urgent.first .pl, .mg-compact #mg-objectives .obj .nx b { font-size: var(--tcap); }
+.mg-compact #mg-clock .sol .of:not(:empty) { font-size: var(--tcap); }
+
+/* (an arrowhead at the edge of the screen has no number, and no empty plate where one would be) */
+#mg-way b:empty { display: none; }
+/* (the letters of the compass are read at a glance: 14 px on a phone, where N stood at 12.5) */
+.mg-compact #mg-compass .cards span { font-size: var(--t14); }
+
+/* the first minute's two hints, on the small phone: between the stick and JUMP, with a margin (at 14 px they reached 6 px into JUMP) */
+@media (max-width: 760px) { .mg-touch.is-cold #mg-keys { left: calc(50% - 1.5rem); letter-spacing: .03em; gap: .25rem; } .mg-touch.is-cold #mg-keys span { padding: .3125rem .5rem; } }
+
+/* Closed, the card is the one thing to do and where: the lines under it go with its reason, and come back with it.
+   (On the small phone the room the reason gave up was taken by the next line, and the card was no shorter.) A
+   second line that is itself a red one stays. */
+.mg-compact #mg-objectives.shut .obj:not(.primary):not(.urgent):not(.done) { display: none; }
+
+/* The region's name is where he is, not somewhere to go: on a phone it is a caption under the compass, plain letters
+   with no plate behind them. (As a second plate under the target's it read as a second destination.) */
+.mg-compact #mg-region { background: none; color: var(--ink-2); text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 6px rgba(0, 0, 0, .5); }
+.mg-compact #mg-region.enter { animation: none; }
+
+/* Two banners, one above the other, are one width (the wider one's): 112 px over 132 px was two notices that had
+   not been set together. On the small phone every banner is the one width the gap between the gauges and the task
+   card allows, so the slot does not change size from one alarm to the next. */
+.mg-compact #mg-alerts { align-items: stretch; }
+@media (max-width: 760px) { .mg-compact .alert { width: 8.25rem; max-width: 8.25rem; box-sizing: border-box; } }
+
+/* The guide's mark is a caption, not a chip. The whole panel is what is pressed (it is framed as the touch buttons
+   are); a 59 x 28 px box drawn as a button was measured as a button too small to press by three reviews running.
+   While fewer than four bars have arrived it stands under them, where the panel was an empty dark box through the
+   first sol; from the fourth bar it stands under the dial. */
+.res .help { display: none; }
+.mg-touch.mg-compact .suit .help, .mg-touch.mg-compact .res .help { align-self: flex-start; justify-content: flex-start; height: auto; padding: .125rem 0 0; border: 0; border-radius: 0; background: none;
+  color: var(--ink-2); font: 600 var(--tcap)/1 var(--f-cond); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.mg-touch.mg-compact .suit .help { align-self: center; }
+.mg-touch.mg-compact.few-bars .suit .help { display: none; }
+.mg-touch.mg-compact.few-bars .res .help { display: inline-flex; align-items: center; gap: .25rem; margin-top: .3125rem; }
+.mg-touch.mg-compact .res .help i { font-style: normal; color: var(--accent); font-size: var(--t14); }
+.mg-touch.is-cold .res .help, .mg-touch.no-bars .res .help { display: none; }
+
+/* ================================================================ the quiet HUD (a phone's; ui/hud.js decides what shows)
+   A phone held sideways shows the world through what the HUD leaves of the screen. When nothing is wrong the HUD is
+   the suit's dial with the day and the hour beside it, the compass, four buttons, and one line that says what to do
+   next and how far it is. What is low, falling fast or has just changed shows itself; the rest comes on a tap of the
+   dial or of the task, and goes again. (The full HUD stood over a third of the screen and across the top 45% of it
+   edge to edge: six bars, mostly full; a clock strip; a card with its reason and a second task; four lettered
+   buttons; and the same distance on the compass, in the card and on the marker.) The full HUD is still there, as a
+   setting. tests/hud-cover.mjs measures how much of the screen this one takes. */
+#mg-root.mg-calm .hud-scrim { display: none; }
+
+/* --- top left: the dial, the day and the hour; a bar when it has something to say */
+#mg-root.mg-calm #mg-vitals { gap: .4375rem; padding: .25rem .5rem .25rem .3125rem; align-items: center; background: rgba(14, 12, 11, .6); border-color: transparent; }
+#mg-root.mg-calm.bars-in #mg-vitals { align-items: flex-start; background: rgba(14, 12, 11, .8); }
+#mg-root.mg-calm #mg-vitals:active { background: rgba(60, 54, 48, .9); }
+/* (the dial is the suit's tank, and was named when it leaked in the first minute: its name and the line under it are
+   there when the line has something to say, and when he asks) */
+#mg-root.mg-calm .suit .st, #mg-root.mg-calm .suit .cap { display: none; }
+#mg-root.mg-calm .suit.say .st, #mg-root.mg-calm .suit.say .cap { display: block; }
+#mg-root.mg-calm .suit .help, #mg-root.mg-calm .res .help { display: none; }
+#mg-root.mg-calm.bars-open .suit .help { display: inline-flex; }
+#mg-root.mg-calm .res { display: grid; align-content: center; gap: var(--rg); padding-left: .4375rem; border-left: 1px solid var(--line-2); }
+#mg-root.mg-calm.is-cold .res { display: none; }
+#mg-root.mg-calm .res .row:not(.show):not(.fresh) { display: none; }
+#mg-root.mg-calm #mg-clock { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: .25rem; padding: 0; background: none; border-radius: 0; }
+#mg-root.mg-calm #mg-clock .sol { font-size: 1.125rem; line-height: 1; }
+#mg-root.mg-calm #mg-clock .sol .k { margin-right: .25rem; }
+#mg-root.mg-calm #mg-clock .sol .of { display: none; }
+#mg-root.mg-calm #mg-clock .meta { margin: 0; gap: .3125rem; line-height: 1; }
+#mg-root.mg-calm #mg-clock .meta .dn, #mg-root.mg-calm #mg-clock .meta .sep, #mg-root.mg-calm #mg-clock .meta .temp { display: none; }
+/* (asked for: the rescue and the weather stand with them) */
+#mg-root.mg-calm.bars-open #mg-clock .sol .of:not(:empty) { display: inline; }
+#mg-root.mg-calm.bars-open #mg-clock .meta .temp { display: inline; }
+#mg-root.mg-calm.bars-open #mg-clock .meta .sep { display: inline-block; }
+/* (with bars under them they are one line at the head of the bars) */
+#mg-root.mg-calm.bars-in #mg-clock { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: .5rem; row-gap: .1875rem; margin-bottom: .1875rem; max-width: 9.5rem; }
+@media (max-width: 760px) { #mg-root.mg-calm.bars-in #mg-clock { max-width: 7.375rem; } }
+
+/* --- top right, under the four buttons: one line, what to do next and how far. A press opens it (ui/hud.js), and
+   what is pressed is a thumb high whatever the line is. */
+/* (8 px under the buttons: at 4 a thumb for the line was a thumb on Map) */
+#mg-root.mg-calm #mg-tr { top: calc(var(--m) + var(--sat) + max(2.75rem, 44px) + .5rem); gap: 0; padding-bottom: 14px;
+  max-height: calc(100vh - var(--sat) - var(--sab) - var(--m) - max(2.75rem, 44px) - .5rem - 9.75rem); }
+#mg-root.mg-calm #mg-objectives { position: relative; width: auto; max-width: 100%; min-height: 0; padding: .25rem .5rem .3125rem; background: rgba(14, 12, 11, .72); border-color: transparent; }
+#mg-root.mg-calm #mg-objectives:not(.shut) { width: 100%; background: rgba(14, 12, 11, .9); border-color: var(--line-2); }
+#mg-root.mg-calm #mg-objectives::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 100%; min-height: 44px; }
+#mg-root.mg-calm #mg-objectives.shut .obj.primary, #mg-root.mg-calm #mg-objectives.shut .obj.urgent.first { grid-template-columns: .75rem minmax(0, 1fr) auto; }
+#mg-root.mg-calm #mg-objectives.shut .obj.primary .at, #mg-root.mg-calm #mg-objectives.shut .obj.urgent.first .at { grid-column: 3; display: inline-flex; flex-wrap: nowrap; align-items: baseline; }
+#mg-root.mg-calm #mg-objectives.shut .obj .pl, #mg-root.mg-calm #mg-objectives.shut .obj .nx { display: none; }
+#mg-root.mg-calm #mg-objectives.shut .obj .at::after { margin: 0 .0625rem .1875rem .4375rem; }
+#mg-root.mg-calm #mg-objectives.shut .obj .at { margin-left: .375rem; }
+/* (shut, the line is a label like the compass's: the condensed face, the title without its count, on one line where
+   it can be. A title too long for that runs to a second line; none is cut.) */
+#mg-root.mg-calm #mg-objectives.shut .obj .tx { font: 600 var(--t14)/1.25 var(--f-cond); letter-spacing: .02em; }
+#mg-root.mg-calm #mg-objectives.shut .obj .ct { display: none; }
+@media (min-width: 761px) { #mg-root.mg-calm #mg-tr { width: 15.375rem; } }
+/* (the small phone's line has 208 px: it is set a little closer, so that a title and three figures of distance stand on one line) */
+@media (max-width: 760px) {
+  #mg-root.mg-calm #mg-objectives { padding-left: .375rem; padding-right: .375rem; }
+  #mg-root.mg-calm #mg-objectives.shut .obj { column-gap: .25rem; }
+  #mg-root.mg-calm #mg-objectives.shut .obj .at { margin-left: .25rem; }
+  #mg-root.mg-calm #mg-objectives.shut .obj .at::after { margin-left: .3125rem; }
+}
+
+/* --- driving: the speed; a reserve when it is low or asked for */
+#mg-root.mg-calm #mg-rover { gap: .5rem; padding: .1875rem .625rem; background: rgba(14, 12, 11, .5); border-color: transparent; }
+#mg-root.mg-calm #mg-rover.bars { background: rgba(14, 12, 11, .8); }
+#mg-root.mg-calm #mg-rover .spd { min-width: 0; }
+#mg-root.mg-calm #mg-rover:not(.bars) .rv { display: none; }
+#mg-root.mg-calm #mg-rover .row:not(.show) { display: none; }
+/* (from the driver's seat the speed is on the rover's own display, behind the wheel: the plate stands down, and comes
+   back with a reserve when one is low) */
+#mg-root.mg-calm.is-cab #mg-rover:not(.bars) { display: none; }
+/* (on the smallest phone the speed alone is a tighter plate: it gives back the screen that VIEW took. tests/hud-cover.mjs) */
+@media (max-width: 760px) {
+  #mg-root.mg-calm #mg-rover:not(.bars) { gap: .25rem; padding: .0625rem .4375rem; }
+  #mg-root.mg-calm #mg-rover:not(.bars) .spd { gap: .25rem; }
+  #mg-root.mg-calm #mg-rover:not(.bars) .spd b { font-size: 1.4375rem; }
+}
+
+/* --- the pill beside the action button says what the button cannot: HOLD is the button's */
+#mg-root.mg-calm #mg-prompt .ph { display: none; }
+
+/* --- the dial says whose it is and that it opens: the suit's mark over the figure, and at the panel's end the same
+   mark the task line has. (Bare, it was "a percentage in a circle": two reviewers could not say it was the suit's
+   air, took it for the rover's charge beside the speed, and found nothing to show it could be pressed.) Opened, the
+   dial keeps its place under the thumb that pressed it. */
+.suit .si { display: none; }
+#mg-root.mg-calm .suit .si { display: block; line-height: 0; margin: -.0625rem 0 .0625rem; }
+#mg-root.mg-calm .suit .si .ic { width: .75rem; height: .75rem; color: var(--ink-2); stroke-width: 2; }
+#mg-root.mg-calm .suit .num { font-size: 1.1875rem; }
+#mg-root.mg-calm .suit.warn .si .ic { color: var(--accent); }
+#mg-root.mg-calm .suit.crit .si .ic { color: #ff8f84; }
+#mg-root.mg-calm:not(.bars-in) #mg-clock::after { content: ""; align-self: center; flex: none; width: .375rem; height: .375rem; margin: -.125rem 0 .0625rem;
+  border-right: 1.5px solid var(--ink-2); border-bottom: 1.5px solid var(--ink-2); transform: rotate(45deg); }
+/* --- with his life in the balance (the task that leads is a red one) the log keeps quiet: its line stood over the
+   airlock he was being sent to, and said "wipe the panels" beside "get to air" */
+#mg-root.mg-calm.is-urgent #mg-log { display: none; }
+/* (and the card gives that one task: "Make water" stood under "Get to air" while his tank ran out) */
+#mg-root.mg-calm.is-urgent #mg-objectives .obj:not(.first):not(.primary) { display: none; }
+#mg-root.mg-calm.bars-in .suit { align-self: flex-start; }
+/* (a gauge's name stands clear of its bar: the 2 of "HAB O2" ran into it) */
+#mg-root.mg-calm .res .row, #mg-root.mg-calm #mg-rover .row { row-gap: 3px; }
+
+/* --- the task is one mark everywhere: the diamond of its line and of the marker over its place is its mark on the
+   compass too (it was a bullseye there, or a dome, or a door: three signs for one place) */
+#mg-root.mg-calm #mg-compass .mk.lead .ic { display: none; }
+#mg-root.mg-calm #mg-compass .mk.lead::before { content: ""; width: .5625rem; height: .5625rem; background: var(--accent); transform: rotate(45deg); box-shadow: 0 0 0 1.5px rgba(19, 17, 15, .7); }
+#mg-root.mg-calm #mg-compass .mk.lead.danger::before { background: var(--danger); }
+
+/* --- while a red task leads and the tank is low, the dial is the task's colour: "Get to air" stood in red beside
+   an amber dial and a red-ringed WATER, and the eye went to the water. (Not in the first minute, whose leak is the
+   amber it has always been.) */
+#mg-root.mg-calm.is-urgent:not(.is-cold) .suit.warn .arc { stroke: var(--danger); }
+#mg-root.mg-calm.is-urgent:not(.is-cold) .suit.warn .num, #mg-root.mg-calm.is-urgent:not(.is-cold) .suit.warn .cap, #mg-root.mg-calm.is-urgent:not(.is-cold) .suit.warn .st { color: #ff8f84; }
+#mg-root.mg-calm.is-urgent:not(.is-cold) .suit.warn .si .ic { color: #ff8f84; }
+
+/* (on the small phone the rescue has a line of its own in the opened panel: beside the sol it ran out to the panel's edge) */
+@media (max-width: 760px) {
+  #mg-root.mg-calm.bars-open #mg-clock .sol { flex-wrap: wrap; row-gap: .1875rem; }
+  #mg-root.mg-calm.bars-open #mg-clock .sol .of:not(:empty) { flex-basis: 100%; margin-left: 0; }
+}
+
+/* One thing leads (ui/hud.js): beside the leading banner, or alone, the other warnings wait as marks: each its own
+   sign in its own colour, with no words and no bar. */
+#mg-root.mg-calm #mg-alerts { flex-direction: row; align-items: center; justify-content: center; gap: .375rem; }
+/* (a ring round a sign is drawn as a button, so it is one: a press on the marks opens every gauge, as a press on the
+   dial does. They stand in one plate a thumb high, which is what is pressed: as bare 25 px rings they were "the only
+   route to the hidden gauges during an emergency" and looked a quarter of the size a thumb needs.) */
+#mg-alerts .marks { display: flex; align-items: center; justify-content: center; gap: .3125rem; box-sizing: border-box; min-width: max(2.75rem, 44px); height: max(2.75rem, 44px); margin: 0; padding: 0 .5rem;
+  border: 1px solid var(--line-2); border-radius: max(1.375rem, 22px); background: var(--plate); color: inherit; font: inherit; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+#mg-alerts .mark { display: grid; place-items: center; width: 1.625rem; height: 1.625rem; border-radius: 50%; box-sizing: border-box;
+  background: var(--plate-strong); border: 1.5px solid var(--accent); color: var(--accent); font: 600 var(--t12)/1 var(--f-cond); font-style: normal; }
+#mg-alerts .mark .ic { width: .9375rem; height: .9375rem; }
+#mg-alerts .mark.crit { border-color: var(--danger); color: var(--danger); }
+#mg-alerts .mark.more { border-color: transparent; color: var(--ink); }
+/* (on the small phone there is no room beside the banner: the second mark stood under the task's card. They wait under it.) */
+@media (max-width: 760px) {
+  #mg-root.mg-calm #mg-alerts { flex-direction: column; gap: .25rem; }
+  #mg-alerts .marks { justify-content: center; }
+}
+
+/* Beside a banner that has said what to do (ui/hud.js: bannerActs), the task card's one line is the place and how far,
+   in the banner's own red: RUN TO THE HAB, and beside it HAB · 23 m. A press opens the card as ever. */
+#mg-root.mg-calm #mg-objectives.shut.by-banner .obj.urgent.first { grid-template-columns: .75rem auto; }
+#mg-root.mg-calm #mg-objectives.shut.by-banner .obj.urgent.first .tx { display: none; }
+#mg-root.mg-calm #mg-objectives.shut.by-banner .obj.urgent.first .at { grid-column: 2; margin-left: 0; }
+#mg-root.mg-calm #mg-objectives.shut.by-banner .obj.urgent.first .pl { display: inline; font-size: var(--t14); }
+/* (the marks beside a banner say what they are: the other things that are low. The word stands over them, inside the
+   same plate: set beside them it made the plate a thumb wider, and the banner and its marks then reached either
+   under the task card's column on their right or, moved over, under a notice card on their left. On the smallest
+   phone, where the marks wait under the banner, the word is left out.) */
+#mg-alerts .marks:has(small) { position: relative; padding-top: .9375rem; }
+#mg-alerts .marks small { position: absolute; left: 0; right: 0; top: .25rem; text-align: center; font: 600 var(--tcap)/1 var(--f-cond); letter-spacing: .06em; color: var(--ink-2); }
+#mg-alerts .marks:has(small) .mark { width: 1.4375rem; height: 1.4375rem; }
+#mg-alerts .marks:has(small) .mark .ic { width: .875rem; height: .875rem; }
+@media (max-width: 760px) { #mg-alerts .marks small { display: none; } #mg-alerts .marks:has(small) { padding-top: 0; } #mg-alerts .marks:has(small) .mark { width: 1.625rem; height: 1.625rem; } #mg-alerts .marks:has(small) .mark .ic { width: .9375rem; height: .9375rem; } }
+
+/* The opening film (game/opening.js): what is said over the radio, and the way out of it. Nothing else of the
+   interface is on the screen (the HUD hides for a cutscene), and in this film not the log either: its lines are
+   set as a film sets them, at the foot of the picture in the middle. */
+#mg-film { position: absolute; inset: 0; z-index: 8; display: none; pointer-events: none; }
+#mg-root.is-opening #mg-film { display: block; }
+#mg-root.is-opening #mg-log { display: none; }
+#mg-film .sub { position: absolute; left: 50%; bottom: calc(var(--sab) + 1.375rem); transform: translateX(-50%); margin: 0; width: max-content;
+  max-width: calc(100vw - var(--sal) - var(--sar) - 15rem); text-align: center; opacity: 0; transition: opacity .22s var(--ease);
+  font: 500 1.125rem/1.3 var(--f-body); color: var(--ink); text-shadow: 0 0 .625rem rgba(0, 0, 0, .9), 0 1px 2px rgba(0, 0, 0, .9); }
+#mg-film .sub.on { opacity: 1; }
+/* (a line of two sentences is two rows: the break is in the line itself) */
+#mg-film .sub span { display: block; white-space: pre-line; }
+#mg-film .sub b { display: block; margin-bottom: .25rem; font: 600 max(.875rem, 14px)/1 var(--f-cond); letter-spacing: .18em; color: var(--cold); }
+/* (a thumb high and plain: it is there from the first frame, for a player who has seen the film) */
+#mg-film .skip { position: absolute; right: calc(var(--sar) + var(--m)); bottom: calc(var(--sab) + .875rem); box-sizing: border-box; min-width: max(4.5rem, 72px); height: max(2.75rem, 44px);
+  padding: 0 1rem; border: 1px solid var(--line-2); border-radius: .25rem; background: var(--plate); color: var(--ink-2); pointer-events: auto; cursor: pointer;
+  font: 600 max(.875rem, 14px)/1 var(--f-cond); letter-spacing: .16em; text-transform: uppercase; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+#mg-film .skip:hover, #mg-film .skip:focus-visible { color: var(--ink); border-color: var(--ink-3); }
+/* (the card between the evening and the morning: alone on the black, in the middle) */
+#mg-film .later { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; width: max-content; max-width: calc(100vw - var(--sal) - var(--sar) - 4rem);
+  text-align: center; opacity: 0; transition: opacity .45s var(--ease); font: 600 max(1rem, 16px)/1.2 var(--f-cond); letter-spacing: .26em; text-transform: uppercase; color: var(--ink-2); }
+#mg-film .later.on { opacity: 1; }
+.mg-compact #mg-film .sub { font-size: max(1rem, 16px); max-width: calc(100vw - var(--sal) - var(--sar) - 13rem); }
+.mg-line.radio { border-left-color: var(--cold); }
+.mg-line.radio .who { color: var(--cold); }
