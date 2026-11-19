@@ -61,7 +61,10 @@ try {
   git(work, 'add', '-A');
   if (git(work, 'status', '--porcelain') === '') { console.log('gh-pages already matches this build; nothing to publish.'); }
   else {
-    git(work, 'commit', '--quiet', '-m', `${message}\n\nBuilt from ${sha}${dirty ? ' (plus uncommitted changes)' : ''}; ${files.length} files, ${(bytes / 1e6).toFixed(1)} MB.`);
+    // (trailers given with the message, such as Co-Authored-By, stay at its end, where git reads them)
+    const tr = message.match(/^([\s\S]*?)(\n\n(?:[A-Za-z-]+: .+(?:\n|$))+)$/);
+    const head = tr ? tr[1] : message, trailers = tr ? '\n\n' + tr[2].trim() : '';
+    git(work, 'commit', '--quiet', '-m', `${head}\n\nBuilt from ${sha}${dirty ? ' (plus uncommitted changes)' : ''}; ${files.length} files, ${(bytes / 1e6).toFixed(1)} MB.${trailers}`);
     console.log(`\n${files.length} files, ${(bytes / 1e6).toFixed(1)} MB, from ${sha}${dirty ? ' + uncommitted changes' : ''}`);
     if (dry) console.log('dry run: not pushed. Commit is', git(work, 'rev-parse', '--short', 'HEAD'));
     else { git(work, 'push', '--quiet', 'origin', 'HEAD:gh-pages'); console.log(`published to gh-pages${sub ? '/' + sub : ''}:`, git(work, 'rev-parse', '--short', 'HEAD')); }
