@@ -317,12 +317,7 @@ export function showSettings(back, overTitle) {
     // (the size of the interface is a matter of the display: here, the Graphics page of a phone is two rows on its
     //  sheet where it was one over an empty sheet, and the Interface page the two switches)
     `<div class="set-row"><label for="set-hudScale">Interface and text size</label><div class="ctl">${range('hudScale', 'Interface and text size', 0.8, 1.4, 0.05, settings.hudScale, pct, 1)}</div>` +
-    '<p class="hint" id="set-scale-hint"></p></div>' +
-    // (a phone's HUD is the quiet one unless this is on; on a desktop there is room for all of it, and it is all there.
-    //  It stands with the size of the interface, on Display: the Interface page has the saved games)
-    (layout.touch && layout.compact ? `<div class="set-row"><span class="lbl">Full HUD</span><div class="ctl">${sw('fullHud', 'Full HUD', settings.fullHud)}</div>` +
-      '<p class="hint">Every gauge, the clock and the task card, all the time.</p></div>' : '') +
-    '</section>' +
+    '<p class="hint" id="set-scale-hint"></p></div></section>' +
     // controls
     `<section class="set-sec" data-sec="controls"><h3>${icon(layout.touch ? 'hand' : 'mouse')}Controls</h3>` +
     `<div class="set-row"><label for="set-sensitivity">Look sensitivity</label><div class="ctl">${range('sensitivity', 'Look sensitivity', 0.3, 2.5, 0.05, settings.sensitivity, pct, 1)}</div></div>` +
@@ -345,12 +340,14 @@ export function showSettings(back, overTitle) {
     '<p class="hint">Stills the interface\'s animations and softens screen flashes.</p></div>' +
     `<div class="set-row"><span class="lbl">Colour-blind-safe colours</span><div class="ctl">${sw('colorBlind', 'Colour-blind-safe colours', settings.colorBlind)}</div>` +
     '<p class="hint">Blue, yellow and vermilion in place of green, amber and red; low gauges are hatched.</p></div>' +
-    // (moving to another copy of the game, such as a home-screen copy at a new address, which keeps its own storage)
-    '<div class="set-row"><span class="lbl">Saved games</span><div class="ctl"><button type="button" class="mg-btn small" data-act="export">Copy as text</button>' +
-    '<button type="button" class="mg-btn small" data-act="import">Load from text</button></div>' +
-    '<p class="hint">To move your runs to another copy of the game: copy them here, paste them there.</p></div></section>' +
+    // (a phone's HUD is the quiet one unless this is on; on a desktop there is room for all of it, and it is all there)
+    (layout.touch && layout.compact ? `<div class="set-row"><span class="lbl">Full HUD</span><div class="ctl">${sw('fullHud', 'Full HUD', settings.fullHud)}</div>` +
+      '<p class="hint">Every gauge, the clock and the task card, all the time.</p></div>' : '') + '</section>' +
     '</div></div>' +
     `<footer class="sheet-ft"><button type="button" class="mg-btn primary" data-act="back" data-autofocus>${icon('check')}Done</button>` +
+    // (saved games, to move them to another copy of the game, such as a home-screen copy at a new address, which keeps
+    //  storage of its own. A button at the foot of every tab: as a row on a tab, no tab on a phone had room for it)
+    '<button type="button" class="mg-btn" data-act="saves">Saved games</button>' +
     '<button type="button" class="mg-btn" data-act="reload" hidden>Reload to apply</button>' +
     '<span class="note"></span><button type="button" class="mg-btn small" data-act="reset">Reset to defaults</button></footer></div>',
     { label: 'Settings', onEscape: back });
@@ -432,8 +429,7 @@ export function showSettings(back, overTitle) {
   });
   on(p, '[data-act="back"]', back);
   on(p, '[data-act="reset"]', () => { resetSettings(); showSettings(back, overTitle); });
-  on(p, '[data-act="export"]', () => showSaveTransfer('export', () => showSettings(back, overTitle), overTitle));
-  on(p, '[data-act="import"]', () => showSaveTransfer('import', () => showSettings(back, overTitle), overTitle));
+  on(p, '[data-act="saves"]', () => showSaveTransfer('export', () => showSettings(back, overTitle), overTitle));
   on(p, '[data-act="reload"]', () => {
     if (menuHooks.save) menuHooks.save();
     try {
@@ -496,11 +492,14 @@ export function showSaveTransfer(mode, back, overTitle) {
     `<textarea class="xfer" rows="4" spellcheck="false" autocapitalize="off" autocomplete="off"${out ? ' readonly' : ''} aria-label="Saved games as text">${esc(text)}</textarea>` +
     '<p class="hint" role="status"></p></div></div>' +
     `<footer class="sheet-ft"><button type="button" class="mg-btn primary" data-act="go" data-autofocus>${out ? `${icon('check')}Copy` : 'Load'}</button>` +
+    `<button type="button" class="mg-btn" data-act="${out ? 'import' : 'export'}">${out ? 'Load from text' : 'Copy as text'}</button>` +
     `<button type="button" class="mg-btn" data-act="back">${icon('back')}Back</button></footer></div>`,
     { label: out ? 'Copy saved games as text' : 'Load saved games from text', onEscape: back });
   if (overTitle) UI.overlay.classList.add('over-title');
   const ta = p.querySelector('textarea'), note = p.querySelector('.transfer .hint');
   on(p, '[data-act="back"]', back);
+  on(p, '[data-act="import"]', () => showSaveTransfer('import', back, overTitle));
+  on(p, '[data-act="export"]', () => showSaveTransfer('export', back, overTitle));
   on(p, '[data-act="go"]', () => {
     if (out) {
       if (!text) { note.textContent = 'Nothing to copy.'; return; }

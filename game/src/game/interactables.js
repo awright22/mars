@@ -89,9 +89,9 @@ addI({
     const pl = nearestPlot(); if (!pl) return false;
     switch (pl.state) {
       case 'empty': return S.inv.regolith > 0 ? true : 'Needs regolith: dig it at the heap outside';
-      case 'soil': return plantable().length ? (S.water >= BAL.waterPerDose ? true : 'Needs water (5 L): bake some out of regolith at the oven') : 'Needs seed: nothing left to plant from';
+      case 'soil': return plantable().length ? (S.water >= BAL.waterPerDose ? true : 'Needs water (5 L): bake regolith in the oven') : 'Needs seed: nothing left to plant from';
       case 'growing':
-        if (pl.watered < cropOf(pl).waterings && pl.growth >= 0.42) return S.water >= BAL.waterPerDose ? true : 'Needs water (5 L): bake some out of regolith at the oven';
+        if (pl.watered < cropOf(pl).waterings && pl.growth >= 0.42) return S.water >= BAL.waterPerDose ? true : 'Needs water (5 L): bake regolith in the oven';
         // (a reading, not a lock: there is nothing to do to it yet)
         // (a bed sown a moment ago is "just planted": "4% grown" on a bed he had only just filled read as a slip)
         return statusText(`${cropOf(pl).name}: ${pl.growth < 0.08 ? 'just planted' : `${Math.round(pl.growth * 100)}% grown`}${pl.watered < cropOf(pl).waterings ? ', water again at 50%' : ''}`);
@@ -639,7 +639,7 @@ addI({
   r: 3.6, hold: 3.0, mode: 'walk', pose: 'stand', priority: -1, task: 'breach',
   visible: () => S.breach.active && S.inside,
   label: () => 'Seal the breach',
-  sub: () => 'Patch canvas and sealant over the landing-damaged seam',
+  sub: () => 'Canvas and sealant over the seam',
   use: () => {
     S.breach.active = false;
     S.breach.done = true;

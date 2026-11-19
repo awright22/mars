@@ -93,10 +93,12 @@ const xfer = await g.eval((G) => {
 check('saved games go out as text and come back in; text that is not a save is refused', xfer.head === 'MGSAVE1:' && !xfer.bad && xfer.ok && xfer.same, xfer);
 await g.page.keyboard.press('Escape');
 await g.page.locator('#mg-panel button', { hasText: 'Settings' }).first().click();
-const row = await g.page.locator('#mg-panel [data-act="export"]').count() + await g.page.locator('#mg-panel [data-act="import"]').count();
-await g.page.locator('#mg-panel [data-act="export"]').click();
+const row = await g.page.locator('#mg-panel [data-act="saves"]').count();
+await g.page.locator('#mg-panel [data-act="saves"]').click();
 const shown = await g.page.locator('#mg-panel textarea.xfer').inputValue();
-check('Settings has Saved games: Copy as text shows the runs as text, and Load from text is beside it', row === 2 && shown.startsWith('MGSAVE1:'), { row, head: shown.slice(0, 12) });
+await g.page.locator('#mg-panel [data-act="import"]').click();
+const paste = await g.page.locator('#mg-panel textarea.xfer:not([readonly])').count();
+check('Settings has Saved games: it shows the runs as text to copy, and Load from text is beside it', row === 1 && shown.startsWith('MGSAVE1:') && paste === 1, { row, head: shown.slice(0, 12), paste });
 // an unreadable save is reported on the title screen
 await g.page.evaluate(() => localStorage.setItem('mg-save', JSON.stringify({ v: 99, nonsense: true })));
 await g.page.reload({ waitUntil: 'load' });
