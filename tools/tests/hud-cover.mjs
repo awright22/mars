@@ -61,7 +61,10 @@ export async function measure(size, o = {}) {
   };
   const quiet = () => page.waitForFunction(() => !document.querySelector('#mg-toast .toast'), null, { timeout: 40000 }).catch(() => {});
   /** Let the HUD come to rest: cards gone, the log's line faded, the task card shut, the bars that showed a change put away. */
-  const rest = async () => { await quiet(); await sleep(1500); await ev((G) => { G.tick(0.05, 320); }); await quiet(); await sleep(11000); await ev((G) => { G.setStorm(0); G.S.storm.i = 0; G.setLocalTime(13); G.tick(0.05, 40); }); };
+  // (a log line fades on the clock on the wall, nine seconds at most after it is written, and the game writes the landing
+  //  site's line five and a half seconds in: waited for, not slept past, since on a slow machine it was still up)
+  const logQuiet = () => page.waitForFunction(() => ![...document.querySelectorAll('#mg-log .mg-line')].some((n) => !n.classList.contains('fade') && n.getClientRects().length), null, { timeout: 40000 }).catch(() => {});
+  const rest = async () => { await quiet(); await sleep(1500); await ev((G) => { G.tick(0.05, 320); }); await quiet(); await sleep(11000); await logQuiet(); await sleep(1500); await ev((G) => { G.setStorm(0); G.S.storm.i = 0; G.setLocalTime(13); G.tick(0.05, 40); }); };
 
   // a run a few sols in, by day, with everything met and nothing wrong
   await ev(async (G) => {
