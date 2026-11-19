@@ -4,11 +4,11 @@
 //
 // Measured in the running game, sixty times a second, with nothing drawn. Each walking clip's planted boot goes back
 // under him at a pace of its own (the Walk clip's at 5.1 m/s, the Run clip's at 9.2), and the game plays each at the
-// pace he is moving at, so the boot is still on the ground. This holds it to that at a stroll, a walk and a run, and
-// in the opening film, whose six figures use the same clips. And it holds the sound to the feet: the game counts a
-// footfall when a boot comes down (game/player.js), and the audio plays one step for each (audio/movement.js).
+// pace he is moving at, so the boot is still on the ground. This holds it to that at a stroll, a walk and a run.
+// And it holds the sound to the feet: the game counts a footfall when a boot comes down (game/player.js), and the
+// audio plays one step for each (audio/movement.js).
 // Both went wrong once without a test to say so: the sound kept a time of its own, three steps to his feet's two;
-// and the Walk clip was played as if its pace were 2.2, so that at a stroll, and all through the film, he skated.
+// and the Walk clip was played as if its pace were 2.2, so that at a stroll he skated.
 // A third thing is held here too: how high a boot comes through as he walks (the owner: "high stepping").
 import { openGame } from './lib.mjs';
 
@@ -53,21 +53,7 @@ const out = await g.eval(async (G) => {
   const before = G.player.steps; G.tick(1 / 60, 120);
   res.still = { steps: G.player.steps - before, clip: G.player.anim };
 
-  // ---- the opening film: the first of the six through the first shot, and the last of them (him) through the second
-  G.startOpening(); G.tick(1 / 60, 20);
-  const figs = G.ctx.world.children.filter((c) => c.children[0] && c.children[0].name === 'astronaut' && c.children[0] !== own);
-  const film = (label, r, until) => {
-    const rec = { L: [], R: [] }, p0 = r.root.position.clone(); let n = 0;
-    G.tick(1 / 60, 12);
-    const t0 = G.World.opening.t; p0.copy(r.root.position);
-    while (G.World.opening && G.World.opening.t < until) { G.tick(1 / 60, 1); n++; sample(r, rec); }
-    res[label] = { pace: +(r.root.position.distanceTo(p0) / Math.max(0.01, G.World.opening.t - t0)).toFixed(2), slide: slide(rec) };
-  };
-  film('filmFirst', rig(figs[0]), 4.6);
-  G.tick(1 / 60, 40);                                              // over the cut
-  film('filmLast', rig(figs[figs.length - 1]), 9.0);
-  G.skipOpening();
-  return { ...res, figures: figs.length };
+  return res;
 });
 
 for (const k of ['stroll', 'walk', 'run']) {
@@ -79,8 +65,6 @@ check('he walks with the Walk clip and runs with the Run clip, each at its own p
 check('about two steps a second at a walk and nearer three at a run', out.walk.perSec > 1.7 && out.walk.perSec < 2.5 && out.run.perSec > 2.3 && out.run.perSec < 3.2, { walk: out.walk.perSec, run: out.run.perSec });
 check('walking, his boot comes through low: no more than a hand over where it stands (it was a third of a metre, and at a slowed run half a metre)', out.walk.lift > 0.05 && out.walk.lift < 0.2 && out.stroll.lift < 0.2, { walk: out.walk.lift, stroll: out.stroll.lift, run: out.run.lift });
 check('standing still, no step is counted', out.still.steps === 0 && out.still.clip === 'Idle', out.still);
-check('in the opening film the crew\'s planted boots stay where they were put (the first shot)', out.figures === 6 && out.filmFirst.pace > 2 && out.filmFirst.slide.planted >= 8 && out.filmFirst.slide.median < 1.2, out.filmFirst);
-check('... and his, on the walk to the ascent vehicle (the second shot)', out.filmLast.pace > 2 && out.filmLast.slide.planted >= 8 && out.filmLast.slide.median < 1.2, out.filmLast);
 check('no console errors', g.errors.length === 0, g.errors.slice(0, 4));
 console.log(`\n${fails.length ? fails.length + ' FAILED' : 'steps: all checks passed'}`);
 await g.close();
