@@ -371,8 +371,9 @@ function closeToast(cur, atOnce) {
 function nextToast() {
   if (!toastQueue.length) { toastBusy = false; return; }
   toastBusy = true;
-  // never over a menu or a screen: wait for the player to be back in the world
-  if (S.uiOpen || anyScreenOpen()) {
+  // never over a menu, a screen or a film: wait for the player to be back in the world (an achievement earned on the
+  // way to the launch stood over the docking with the Tern)
+  if (S.uiOpen || anyScreenOpen() || S.mode === 'cutscene') {
     if (S.won) { toastQueue.length = 0; toastBusy = false; return; }
     setTimeout(nextToast, 400);
     return;

@@ -794,7 +794,7 @@ export function dropSupplyPod(loot, label) {
   const g = placeOffset(World.hab, Math.sin(ang) * dist, Math.cos(ang) * dist, srand() * 6);
   const pod = addSupplyPod(g, loot, label || 'Open supply pod');
   Snd.jingle();
-  log(`To the first crew: a cargo canister from the Tern came down ${Math.round(dist)} m out. They land softer than I did.`, 'control');
+  log(`To the first crew: a cargo canister from the Tern came down ${Math.round(dist)} m out. They land softer than I did.`);
   return pod;
 }
 export function siteLocalToWorld(group, lx, ly, lz, out) {

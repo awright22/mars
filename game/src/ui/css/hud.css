@@ -8,6 +8,8 @@
 .is-playing.is-modal #mg-prompt { visibility: hidden; }
 /* the launch: only the log stays */
 .is-cutscene #mg-hud > :not(#mg-log):not(.hud-scrim) { opacity: 0 !important; transition: opacity .6s; }
+/* (and a card already up when a film begins goes with it: the next waits for the film's end, ui/dom.js nextToast) */
+.is-cutscene #mg-toast { opacity: 0 !important; transition: opacity .6s; }
 
 /* soft darkening behind the top and bottom rows, so type holds over a bright sky and pale dust */
 .hud-scrim { position: absolute; left: 0; right: 0; height: 8.5rem; }

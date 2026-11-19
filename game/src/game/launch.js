@@ -416,10 +416,21 @@ export function startLaunch() {
     tern = m.root;
     // her lamps, nose to tail, each with a material of its own so that they can come on one after another; dark until docking
     World.ternLamps = [];
+    const haloMap = softDisc();
     for (let k = 0; k < 9; k++) {
       const lp = m.part('lamp_' + k);
       if (!lp) continue;
-      lp.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); World.ternLamps.push({ k, mat: o.material, full: o.material.emissiveIntensity || 4 }); } });
+      lp.traverse((o) => {
+        if (!o.isMesh) return;
+        o.material = o.material.clone();
+        // (and a halo: from the docking camera a lamp is a pixel or two, and "her lights come on along her length" was a
+        //  few dim dots. Set on the lamp's own middle, sized in metres once she is in the world, below)
+        o.geometry.computeBoundingBox();
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloMap, color: new THREE.Color(1.9, 1.7, 1.35), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+        o.geometry.boundingBox.getCenter(halo.position); halo.renderOrder = 22;
+        o.add(halo);
+        World.ternLamps.push({ k, mat: o.material, full: o.material.emissiveIntensity || 4, halo });
+      });
     }
     World.ternNav = [];
     const lights = m.part('lights');
@@ -430,9 +441,13 @@ export function startLaunch() {
     World.ternFlame.rotation.x = Math.PI / 2;
     (World.ternNozzle || tern).add(World.ternFlame);
     ctx.world.add(tern);
+    // (each halo 2.4 m across, whatever the scale of the part it hangs on)
+    tern.updateMatrixWorld(true);
+    const ws = new THREE.Vector3();
+    for (const l of World.ternLamps) { l.halo.parent.getWorldScale(ws); l.halo.scale.set(2.4 / ws.x, 2.4 / ws.y, 1); }
   }
   tern.visible = false;
-  for (const l of World.ternLamps) l.mat.emissiveIntensity = 0;
+  for (const l of World.ternLamps) { l.mat.emissiveIntensity = 0; l.halo.material.opacity = 0; }
   for (const l of World.ternNav) l.mat.emissiveIntensity = 0;
   const F = effects(), smoke = F.smoke, parts = F.flame.userData;
   smoke.points.position.copy(pad);
@@ -464,6 +479,7 @@ export function startLaunch() {
 
   World.launchAnim = (dt) => {
     t += dt;
+    World.launch.t = t;                              // (for tests and pictures: seconds since the handover was filed)
     const lt = t - LIFT, alt = lt > 0 ? climb(lt) : 0;
     // the engine: lit just before lift-off, burnt out a second before the cut to the Tern
     const burn = smoothstep(IGNITE, IGNITE + 0.45, t) * (1 - smoothstep(MECO, MECO + 0.4, lt));
@@ -600,7 +616,7 @@ export function startLaunch() {
         log('Contact. Capture. Hard dock. The Tern has me.');
       }
       // her lamps, one station after another from the nose aft, and her wingtip lights once they are all on
-      for (const l of World.ternLamps) l.mat.emissiveIntensity = l.full * smoothstep(0, 0.3, ot - LIGHTS_AT - l.k * 0.28);
+      for (const l of World.ternLamps) { const on = smoothstep(0, 0.3, ot - LIGHTS_AT - l.k * 0.28); l.mat.emissiveIntensity = l.full * on; l.halo.material.opacity = 0.85 * on; }
       const navOn = smoothstep(0, 0.3, ot - LIGHTS_AT - 2.8), blink = Math.sin(ot * Math.PI * 1.6) > 0.2 ? 1 : 0.15;      // (under one flash a second)
       for (const l of World.ternNav) l.mat.emissiveIntensity = l.full * navOn * blink;
       if (ot > LIGHTS_AT + 0.6 && O.said < 1) { O.said = 1; log('Control: Groundwork, the Tern reports you aboard. She is all yours.', 'control'); }
