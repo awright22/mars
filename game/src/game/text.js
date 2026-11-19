@@ -1,7 +1,7 @@
 // The surface log: lines written at the start of a sol (silence on unlisted sols). They are handover notes for
 // the first crew who will follow: practical, dry, exact.
 export const SOL_LOGS = {
-  1: 'Log, Sol 1. To the first crew: the solar storm took the guidance on the way down, and the capsule and the Hab lander came down together, a long way off target. The capsule rolled. I did not enjoy it. The Hab is upright. The relays are dark, so nobody knows any of this yet.',
+  1: 'Log, Sol 1. To the first crew: the storm took the guidance on the way down. The capsule rolled; the Hab is upright. The relays are dark.',
   2: 'Sol 2. Air holding, machines running, and nobody on two planets knows I am alive. First job: food. Second job: a radio.',
   3: 'Sol 3. To the first crew: the regolith here needs rinsing before anything will grow in it. Budget the water for it.',
   4: 'Sol 4. Fourteen machines have landed on Mars since 1971. Several of them carried radios that could reach Earth. They are not using them.',
