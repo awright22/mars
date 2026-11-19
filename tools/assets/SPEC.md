@@ -1,4 +1,4 @@
-# Mars Survival (working title) — 3D asset specification
+# Mars Survival — 3D asset specification
 
 Every model in the game is authored by a Python script that drives Blender headlessly
 (`bpy` 5.x as a Python module) and exports a compressed `.glb`. This file is the contract between

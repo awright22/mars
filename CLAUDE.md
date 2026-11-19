@@ -1,7 +1,7 @@
-# Mars Survival (working title): project instructions
+# Mars Survival: project instructions
 
 This repository is a phone-first 3D survival game on a whole, real Mars, played in the browser and installable
-as a PWA. The name is a working title until the owner chooses one; it lives in `game/src/core/brand.js`, and the
+as a PWA. Its name, Mars Survival, was chosen by the owner; it lives in `game/src/core/brand.js`, and the
 build writes it into the page and the manifest. `README.md` describes the game as it stands.
 
 Layout: `game/` is the published site (`index.html`, the PWA files, the built `game.js`, `game.css`,

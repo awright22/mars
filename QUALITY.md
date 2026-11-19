@@ -1,4 +1,4 @@
-# Mars Survival (working title): quality bar and open items
+# Mars Survival: quality bar and open items
 
 This file is the bar the game is held to, what has been measured against it, and what is still open. A session
 that changes the game updates it. "Measured" always says how: a number from headless Chromium with software

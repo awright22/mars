@@ -1,11 +1,11 @@
-# Mars Survival (working title)
+# Mars Survival
 
 A phone-first 3D survival game for the browser, on a whole, real Mars. You are the advance mission, down far off
 target with the relays dark: survive, build a radio out of the landers that came before you, drive to the station
 you were meant to land at, and catch your ship home.
 
-It runs on a phone (landscape) and on a desktop, installs as an app (PWA) and plays offline once loaded. The name
-is a working title, set in `game/src/core/brand.js`.
+It runs on a phone (landscape) and on a desktop, installs as an app (PWA) and plays offline once loaded. The name is
+set in one place, `game/src/core/brand.js`.
 
 ## Play it
 

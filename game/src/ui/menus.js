@@ -14,7 +14,7 @@ import { llToVec } from '../planet/geo.js';
 import { ctx } from '../game/ctx.js';
 import { Snd } from '../audio/sound.js';
 import { setAudioVolume, getAudioVolumes } from '../audio/settings.js';
-import { TITLE, TITLE_NOTE, WORDMARK_HTML, TAGLINE } from '../core/brand.js';
+import { TITLE, WORDMARK_HTML, TAGLINE } from '../core/brand.js';
 import { exportSaves, importSaves } from '../game/save.js';
 import { storeKey } from '../core/storage.js';
 const busVolume = (bus) => { try { const v = getAudioVolumes()[bus]; return typeof v === 'number' ? Math.max(0, Math.min(1, v)) : 1; } catch (e) { return 1; } };
@@ -84,7 +84,7 @@ export function showTitle(o) {
     `<div class="menu-col">${WORDMARK}<p class="tag">${TAGLINE}</p><nav class="menu" aria-label="Main menu">${items}</nav>` +
     (o.unreadable ? `<p class="menu-note" role="alert">Your saved game was made by an older version of ${TITLE} and cannot be continued. Starting a new game replaces it.</p>` : '') +
     '</div>' +
-    `<div class="title-foot"><span>${layout.touch ? 'Best in landscape, with sound' : 'Arrow keys to choose · Enter to select'}</span><span>${TITLE} (${TITLE_NOTE}) · Real Mars terrain from MOLA data</span></div>`,
+    `<div class="title-foot"><span>${layout.touch ? 'Best in landscape, with sound' : 'Arrow keys to choose · Enter to select'}</span><span>${TITLE} · Real Mars terrain from MOLA data</span></div>`,
     { label: `${TITLE}, main menu` });
   UI.overlay.classList.toggle('first', !titleSeen);
   titleSeen = true;
@@ -534,7 +534,7 @@ export function showPhotosensitivity(onDone) {
 
 export function showCredits(back, overTitle) {
   const p = openOverlay('sheet',
-    `<div class="sheet"><header class="sheet-hd"><div><span class="t-kicker">${TITLE} (${TITLE_NOTE})</span><h1>Credits</h1></div></header>` +
+    `<div class="sheet"><header class="sheet-hd"><div><span class="t-kicker">${TITLE}</span><h1>Credits</h1></div></header>` +
     '<div class="sheet-bd mg-scroll"><div class="credits">' +
     '<section class="lead"><p>A survival game on a whole, real Mars: every mountain, canyon and crater where the orbiters measured it, and every lander where it came down. ' +
     'Its story, its people, its mission, its ships and its mission control are fiction.</p></section>' +
