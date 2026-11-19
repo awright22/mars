@@ -170,7 +170,7 @@ s = await ev((G) => {
 check('save and load round-trips the state', JSON.stringify(s.before) === JSON.stringify(s.after), s);
 
 s = await ev((G) => { G.checkpoint(); G.tpLocal(0, 60); G.S.suit = 0; G.S.health = 0.5; G.tick(0.05, 10); return { over: G.S.over, dead: G.S.dead }; });
-check('running out of air outside is fatal', s.over && /sphyx/.test(s.dead || ''), s);
+check('running out of air outside is fatal', s.over && /ran out of air/.test(s.dead || ''), s);
 await click('WAKE AT DAWN');
 s = await ev((G) => ({ over: G.S.over, health: G.S.health, suit: G.S.suit }));
 check('waking at the dawn checkpoint restores the run', !s.over && s.health >= 50 && s.suit >= 100, s);
