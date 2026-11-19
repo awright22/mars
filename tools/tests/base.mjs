@@ -124,7 +124,10 @@ const stone = await g.eval(async (G) => {
   const frames = (ms) => new Promise((r) => setTimeout(r, ms));
   const from = G.player.pos.clone();
   let c = null;
+  // (boulders lie on the finest mesh: wait for all of the ground about the camera, which on a machine drawing in
+  //  software takes minutes, not the twenty seconds of a plain settle; see rocks.mjs)
   for (let tries = 0; tries < 12 && !c; tries++) {
+    await G.settle(420000);
     G.paused = false; await frames(1800); G.paused = true;
     const u = G.player.pos.clone().normalize();
     c = G.rockColliders.slice().sort((a, b) => a.v.distanceTo(u) - b.v.distanceTo(u))[0] || null;
