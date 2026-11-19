@@ -342,7 +342,8 @@ addI({
   enabled: () => ((S.inv.regolith || 0) < 1 ? 'Needs regolith: dig a load at the heap outside'
     : S.power < BAL.ovenPower + 3 ? `Needs power: the oven takes ${BAL.ovenPower}% of the battery` : true),
   label: () => `Bake a load of regolith: +${BAL.ovenWater} L of water`,
-  sub: () => `Uses 1 of the ${loads(S.inv.regolith || 0)} you carry · ${BAL.ovenPower}% of the battery`,
+  // (one line under the prompt on a 667-wide phone: "Uses 1 of the 3 loads you carry" and the power took two)
+  sub: () => `1 of ${loads(S.inv.regolith || 0)} · ${BAL.ovenPower}% of the battery`,
   use: () => {
     if ((S.inv.regolith || 0) < 1 || S.power < BAL.ovenPower + 3) return;
     S.inv.regolith--;

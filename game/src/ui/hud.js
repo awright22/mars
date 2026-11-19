@@ -19,6 +19,7 @@ import { regionName } from '../planet/features.js';
 import { localSunEl, localTempC, sleepTime, stormIntensityAt, suitDrain } from '../game/sim.js';
 import { icon } from './icons.js';
 import { layout, onLayout } from './layout.js';
+const LINK_ONE = { dish: 'an antenna', amp: 'an amplifier', drive: 'a pointing drive' };
 // Per-frame HUD: mission tracker, compass, region, gauges, clock, rover readout, alerts,
 // and the danger and cold levels the renderer's final pass draws at the screen edges.
 
@@ -113,10 +114,11 @@ export const OBJECTIVES = [
     pos: () => { const p = World.panels.reduce((a, b) => (!a || b.dust > a.dust ? b : a), null); return p ? above(p.group.getWorldPosition(_wv), 1.2) : null; },
     shown: () => !!S.flags.suitSealed && (plantedPlots() > 0 || S.sol > 1 || S.power < 55), done: () => S.stats.panels >= 3 },
   // the Earth-link: a part from each of three landers that carried one, fitted at the dish mast by the Hab
+  // (the title as short as the others, about thirty letters: on a phone a longer one ran onto a second line)
   { id: 'link', place: () => (nextToFit() ? 'Dish mast' : linkTarget() ? linkTarget().data.name : 'Landers'), icon: 'dish',
-    text: () => (nextToFit() ? `Fit the ${LINK_NAMES[nextToFit()]}` : `Earth-link: find a ${LINK_NAMES[linkNeeded()[0] || 'dish']} (${linkHave()} of 3)`),
+    text: () => (nextToFit() ? `Fit the ${LINK_NAMES[nextToFit()]}` : `Find ${LINK_ONE[linkNeeded()[0] || 'dish']} (${linkHave()} of 3)`),
     why: () => (nextToFit() ? 'At the dish mast by the Hab. The third part fitted makes the call.'
-      : linkTarget() ? `${linkTarget().data.name} carried one. Three parts from three landers, then Earth.` : 'Three parts from three landers that talked to Earth.'),
+      : linkTarget() ? `For the Earth-link: ${linkTarget().data.name} carried one. Three parts from three landers, then Earth.` : 'For the Earth-link: three parts from three landers that talked to Earth.'),
     pos: () => (nextToFit() ? above(World.uplink.position, 2) : linkTarget() ? above(linkTarget().group.position, 2) : null),
     shown: () => S.flags.linkRevealed || linkHave() > 0, done: () => S.link.connected },
   { id: 'harvest', place: 'Farm bed', text: () => 'Bring in the first harvest',
