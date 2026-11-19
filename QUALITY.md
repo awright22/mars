@@ -142,7 +142,12 @@ session starts; one phone-size browser can hold 4 GB. Run one browser at a time,
 same. The local server serves as the published site does (stated lengths, gzip with the compressed length): it once
 did neither, which hid the fault that kept the game from starting on the owner's iPhone. Tests poll for the state
 they expect rather than wait a fixed time, and a call into the page that does not return in fifteen minutes fails
-with the site and what was drawn (`tools/tests/lib.mjs`), after one unexplained half-hour hang.
+with the site and what was drawn (`tools/tests/lib.mjs`), after one unexplained half-hour hang. The debug hook's
+`settle()` waits twenty seconds for the ground about the camera; here the two terrain workers share the four cores
+with the software renderer, and the finest chunks (the only ones that carry stones, and where boulders become
+colliders) can take minutes. A test that looks at rocks or boulders waits for all of it, `G.settle(420000)`
+(`rocks.mjs`, `base.mjs`): without that the rocks test found no stones at all and the base test no boulder. A test
+run beside two other browsers can also flag a slow step that is only the machine (`motion.mjs` did once).
 
 ## The bar
 
