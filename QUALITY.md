@@ -46,11 +46,17 @@ patch in the Hab, and the transit ship's model (the old one was replaced by the 
 build_tern). The water rig became a regolith oven (`tools/assets/hab.py`, st_oven). Saves from before the move are
 carried into the new story and the player is told so plainly; saves can be copied out and pasted in as text. The
 build ships `licenses.txt`, linked from the credits, which also say the game is not affiliated with any agency. A
-photosensitivity notice is shown on first launch. The old address redirects here.
+photosensitivity notice is shown on first launch. The name is Mars Survival, the owner's choice (19 November). The
+old address's redirect is ready (`tools/old-address/`) and waits until this address serves (item 12).
 
-**Checked.** The full suite (`node tools/tests/run.mjs`) before publishing; the opening and the ending photographed
-at phone size (`node tools/tests/film.mjs --opening --phone`, `node tools/tests/film.mjs --phone`); the published
-build loaded at iPhone size and looked at (title, opening, first contact, a letter, the ending).
+**Checked.** Every test of the suite passed on the published files (20 November, cache `mg-d77108870246`):
+seventeen in the publish run, then ui-audit (after its measuring was made to wait out a gauge's few seconds of
+news), ui-audit-selftest and update on the same build, which was published with `--skip-tests` because only a
+test had changed. A walk through the game at iPhone size (Playwright's iPhone 14 held sideways) against a local copy:
+the photosensitivity notice, the title, the credits with the licences link, the opening film, first contact, a
+letter in the log and the journal, the handover, the launch, the docking and the last note, with no console errors;
+the ending again after its fixes. An independent reviewer judged the films from those stills (item 43). **Not
+done**: the published build has not been loaded, because the address does not serve yet (item 12).
 
 ## Originality
 
@@ -155,7 +161,7 @@ run beside two other browsers can also flag a slow step that is only the machine
 | --- | --- | --- |
 | Frame rate | 30 fps or better on the owner's iPhone, in landscape, on "medium"; 60 fps on a mid-range laptop at "high" is a bonus | **MET on an old build; to be measured on the current one.** First report (932 x 430 points at 3x, iOS 18.7, Safari, build `775c4ab5aec2`): 60 fps average, 37 at the slowest 1%, worst frame 55 ms; 60 draw calls (21 shadow), 322k triangles; no errors; drawn at a scale of 0.64. Second report, same build: 51 fps average, 14 at the slowest 1%, worst 765 ms, drawn at 820 x 378, 94 calls, 373k triangles, in the rover. Both show the old governor stepping down and never up; it now climbs, and a hitch no longer costs a step. Later builds cost more per pixel and are unmeasured on a phone. No laptop GPU measured (software rendering gives 0.4 to 12 fps) |
 | Scene cost | Per frame (`perf.mjs`). "low": 180 calls, 340k triangles in the picture, 230k in shadow. "high": 290 / 600k / 400k. Estimates, to catch regressions | low: 69 to 180 calls, 130k to 251k, 47k to 222k. high: 83 to 229, 130k to 389k, 84k to 266k. "low" outside the Hab sits on its call budget, 75 of them shadow passes |
-| Load | Title interactive in under 5 s on 20 Mbit; under 14 MB; works offline after first load | 13.54 MB precached (53 files), counted before the move; 1.2 to 5.5 s headless from localhost. Starts on the owner's iPhone since the loader fix (confirmed). Not measured on a phone network |
+| Load | Title interactive in under 5 s on 20 Mbit; under 14 MB; works offline after first load | 15.31 MB precached (69 files) in the build of 20 November, against a bar of 14 MB: **over** (the move's new models, the licences file and the regolith oven; not yet looked into); 1.2 to 5.5 s headless from localhost. Starts on the owner's iPhone since the loader fix (confirmed). Not measured on a phone network |
 | Console | Zero errors or warnings in a full playthrough | zero in every test and screenshot run |
 | Story arc | Every step from the landing to the docking with the Tern works | 24 of 24 scripted checks (`arc.mjs`), the regolith oven and the three-part Earth-link among them (19 November) |
 | Systems | Every system does what it says | science 16/16, equipment wear 8/8, farm, meals, morale and comforts 8/8, photo mode 9/9, sights, moons and compass 9/9, audio wiring 26/26 |
@@ -585,7 +591,7 @@ before and may be worth less than their marks; twenty-five of the twenty-seven i
 | 10 | Frame rate on a real phone and laptop | the phone measured on an old build only; to measure again on the current one, at 60 and 30. Laptop not measured |
 | 11 | WebKit and iOS checks | blocked: only Chromium in sessions; needs the owner's phone |
 | 15 | Listen to the audio on speakers and a phone; retune by ear | blocked on a listener; nothing has been heard |
-| 12 | Publish to `gh-pages` | Before the move the preview (`next/`) held the latest build and the root an older one, to be replaced once the owner had seen the preview on the phone. The game now publishes from this repository's `gh-pages`; what it holds after the move is for the publishing session to record. Publish only from a commit whose whole suite passes |
+| 12 | Publish to `gh-pages` | **Published, not yet served.** `gh-pages` holds the build of 20 November (`fec9002`, built from `90f8a5d` of the working branch; cache `mg-d77108870246`, 70 files, 15.3 MB), begun as a branch of its own with no history of the code's. https://awright22.github.io/mars/ answers 404: this repository is private and GitHub Pages is not switched on for it, which a free account cannot do for a private repository. **For the owner**: make the repository public, or (on GitHub Pro) keep it private, then Settings, Pages, Deploy from a branch, `gh-pages`, `/ (root)`. Then: load the address at iPhone size and look (title, opening, first contact, a letter, the ending), and push `tools/old-address/` to workos-test-app's `gh-pages` (its README says how). Publish only from a commit whose whole suite passes |
 | 37 | **The quiet HUD on the owner's phone** | closed under the bounds. For the owner: the sol and clock beside the dial or on the buttons' row (one menu button would make room); whether it suits in play |
 | 38 | **The owner's direction of 15 November** | every item passed and re-checked. Open: two motion fixes seen by nobody but me (getting in, the rover's weight); props' contact second attempt unreviewed; the heap and the rover's window plateaued; wear reviewed by nobody else; whether the 30 fps setting suits the owner (the phone's diagnostics) |
 | 45 | **The interface after the tenth review** | see "Interface reviews": the direction arrow first, then rows fitted to the fold, untaught gestures, wording, finish |
