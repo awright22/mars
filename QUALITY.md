@@ -47,8 +47,9 @@ build_tern). The water rig became a regolith oven (`tools/assets/hab.py`, st_ove
 carried into the new story and the player is told so plainly; saves can be copied out and pasted in as text. The
 build ships `licenses.txt`, linked from the credits, which also say the game is not affiliated with any agency. A
 photosensitivity notice is shown on first launch. The name is Mars Survival, the owner's choice (19 November). The
-game is served at https://awright22.github.io/mars/ (the repository made public, 22 November), and the old address
-now serves only the redirect in `tools/old-address/`.
+game is served at https://awright22.github.io/mars/ (the repository made public, 22 November). The redirect for the
+old address (`tools/old-address/`) is on workos-test-app's `gh-pages`, but that repository was made private the same
+day, which switched its Pages off: the old address serves nothing (item 12).
 
 **Checked.** Every test of the suite passed on the published files (20 November, cache `mg-d77108870246`):
 seventeen in the publish run, then ui-audit (after its measuring was made to wait out a gauge's few seconds of
@@ -58,7 +59,7 @@ the photosensitivity notice, the title, the credits with the licences link, the 
 letter in the log and the journal, the handover, the launch, the docking and the last note, with no console errors;
 the ending again after its fixes. An independent reviewer judged the films from those stills (item 43). On 22
 November the same walk through the published build at its address: every step, no console errors. The old address
-lands on the new one in a browser; its `next/` waited on GitHub's cache, which held "not found" answers from the deploy.
+landed on the new one in a browser for the quarter of an hour it was served.
 
 ## Originality
 
@@ -593,7 +594,7 @@ before and may be worth less than their marks; twenty-five of the twenty-seven i
 | 10 | Frame rate on a real phone and laptop | the phone measured on an old build only; to measure again on the current one, at 60 and 30. Laptop not measured |
 | 11 | WebKit and iOS checks | blocked: only Chromium in sessions; needs the owner's phone |
 | 15 | Listen to the audio on speakers and a phone; retune by ear | blocked on a listener; nothing has been heard |
-| 12 | Publish to `gh-pages` | **Published and served.** `gh-pages` holds the build of 20 November (`fec9002`, built from `90f8a5d` of the working branch; cache `mg-d77108870246`, 70 files, 15.3 MB), begun as a branch of its own with no history of the code's, and served at https://awright22.github.io/mars/ since the repository was made public on 22 November. Loaded there at iPhone size and walked through (title, opening, first contact, a letter, the ending): no console errors. The old address (workos-test-app's `gh-pages`) serves only the redirect (`tools/old-address/`, pushed 22 November). Publish only from a commit whose whole suite passes |
+| 12 | Publish to `gh-pages` | **Published and served.** `gh-pages` holds the build of 20 November (`fec9002`, built from `90f8a5d` of the working branch; cache `mg-d77108870246`, 70 files, 15.3 MB), begun as a branch of its own with no history of the code's, and served at https://awright22.github.io/mars/ since the repository was made public on 22 November. Loaded there at iPhone size and walked through (title, opening, first contact, a letter, the ending): no console errors. The redirect for the old address is on workos-test-app's `gh-pages` (`tools/old-address/`, pushed 22 November) and worked while served; that repository was then made private, so its Pages are off and the old address answers 404. A copy of the old game added to a home screen keeps running from its own offline cache (its worker's update finds nothing and it stays), and cannot hand its save over unless the old address is served again for a visit Publish only from a commit whose whole suite passes |
 | 37 | **The quiet HUD on the owner's phone** | closed under the bounds. For the owner: the sol and clock beside the dial or on the buttons' row (one menu button would make room); whether it suits in play |
 | 38 | **The owner's direction of 15 November** | every item passed and re-checked. Open: two motion fixes seen by nobody but me (getting in, the rover's weight); props' contact second attempt unreviewed; the heap and the rover's window plateaued; wear reviewed by nobody else; whether the 30 fps setting suits the owner (the phone's diagnostics) |
 | 45 | **The interface after the tenth review** | see "Interface reviews": the direction arrow first, then rows fitted to the fold, untaught gestures, wording, finish |
